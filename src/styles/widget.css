@@ -1,0 +1,60 @@
+/* Widget window — fully transparent; do not import main.css body background here */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html.widget-page,
+html.widget-page body,
+html.widget-page #app,
+html.widget-mac,
+html.widget-mac body,
+html.widget-mac #app,
+html.widget-desktop,
+html.widget-desktop body,
+html.widget-desktop #app {
+  margin: 0;
+  background: transparent !important;
+}
+
+html.widget-pet-mode,
+html.widget-pet-mode body,
+html.widget-pet-mode #app {
+  width: fit-content !important;
+  height: fit-content !important;
+  min-height: 0 !important;
+  overflow: visible;
+}
+
+html.widget-mac body,
+html.widget-desktop body {
+  overflow: hidden;
+}
+
+.drag-region[data-tauri-drag-region] {
+  user-select: none;
+}
+
+.no-drag {
+  user-select: auto;
+}
+
+html.widget-pet-mode .pet-shell {
+  justify-content: flex-start;
+  align-items: flex-start;
+}
+
+.pet-shell {
+  position: relative;
+  display: flex;
+  width: fit-content;
+  height: fit-content;
+  padding: 4px;
+  background: transparent;
+}
+
+.pet-shell--expanded {
+  align-items: flex-start;
+  overflow: hidden;
+}

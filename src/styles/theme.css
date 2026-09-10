@@ -1,0 +1,69 @@
+html[data-theme='dark'],
+html:not([data-theme]) {
+  --pd-body-bg: #000000;
+  --pd-body-fg: #f5f5f7;
+  --pd-sider-fg: #ebebf0;
+  --pd-sider-muted: rgba(235, 235, 240, 0.55);
+  --pd-accent: #98989d;
+  --pd-accent-soft: rgba(255, 255, 255, 0.08);
+  --pd-accent-border: rgba(255, 255, 255, 0.14);
+  --pd-brand-icon-bg: #48484a;
+  --pd-brand-icon-fg: #ffffff;
+  --pd-brand-icon-border: rgba(255, 255, 255, 0.12);
+  --pd-sider-btn-bg: #f5f5f7;
+  --pd-sider-btn-fg: #1c1c1e;
+  --pd-sider-bg: #1c1c1e;
+  --pd-sider-border: rgba(255, 255, 255, 0.08);
+  --pd-main-bg: #000000;
+  --pd-menu-hover-bg: rgba(255, 255, 255, 0.06);
+  --pd-menu-active-bg: #2c2c2e;
+  --pd-panel-bg: rgba(255, 255, 255, 0.04);
+  --pd-panel-border: rgba(255, 255, 255, 0.08);
+  --pd-hover-bg: rgba(255, 255, 255, 0.06);
+  --pd-divider: rgba(255, 255, 255, 0.08);
+  --pd-muted-fg: rgba(235, 235, 240, 0.5);
+  --pd-task-hover: rgba(255, 255, 255, 0.04);
+  --pd-undo-bg: rgba(28, 28, 30, 0.96);
+  --pd-strip-bg: #2c2c2e;
+  --pd-strip-border: rgba(255, 255, 255, 0.08);
+  --pd-badge-bg: #48484a;
+  --pd-badge-fg: #f5f5f7;
+  --pd-focus-ring: rgba(245, 245, 247, 0.35);
+}
+
+html[data-theme='light'] {
+  --pd-body-bg: #f2f2f7;
+  --pd-body-fg: #1c1c1e;
+  --pd-sider-fg: #1c1c1e;
+  --pd-sider-muted: rgba(60, 60, 67, 0.6);
+  --pd-accent: #8e8e93;
+  --pd-accent-soft: rgba(0, 0, 0, 0.04);
+  --pd-accent-border: rgba(0, 0, 0, 0.1);
+  --pd-brand-icon-bg: #ffffff;
+  --pd-brand-icon-fg: #1c1c1e;
+  --pd-brand-icon-border: rgba(0, 0, 0, 0.08);
+  --pd-sider-btn-bg: #1c1c1e;
+  --pd-sider-btn-fg: #ffffff;
+  --pd-sider-bg: #f2f2f7;
+  --pd-sider-border: rgba(0, 0, 0, 0.06);
+  --pd-main-bg: #ffffff;
+  --pd-menu-hover-bg: rgba(0, 0, 0, 0.04);
+  --pd-menu-active-bg: #e5e5ea;
+  --pd-panel-bg: #ffffff;
+  --pd-panel-border: rgba(0, 0, 0, 0.06);
+  --pd-hover-bg: rgba(0, 0, 0, 0.04);
+  --pd-divider: rgba(0, 0, 0, 0.08);
+  --pd-muted-fg: rgba(60, 60, 67, 0.6);
+  --pd-task-hover: rgba(0, 0, 0, 0.03);
+  --pd-undo-bg: rgba(255, 255, 255, 0.98);
+  --pd-strip-bg: #ffffff;
+  --pd-strip-border: rgba(0, 0, 0, 0.06);
+  --pd-badge-bg: #aeaeb2;
+  --pd-badge-fg: #ffffff;
+  --pd-focus-ring: rgba(28, 28, 30, 0.28);
+}
+
+body {
+  background: var(--pd-body-bg);
+  color: var(--pd-body-fg);
+}

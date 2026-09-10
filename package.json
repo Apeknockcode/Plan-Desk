@@ -1,0 +1,34 @@
+{
+  "name": "plan-desk",
+  "version": "1.4.0",
+  "description": "PlanDesk — 备忘录与待办桌面应用，支持桌面小组件",
+  "scripts": {
+    "postinstall": "node scripts/generate-icon.mjs && node scripts/generate-tray-icon.mjs",
+    "download:petdex": "node scripts/download-petdex-bundled.mjs",
+    "optimize:spritesheet": "node scripts/optimize-spritesheet.mjs",
+    "dev": "tauri dev",
+    "dev:vite": "vite",
+    "build": "vite build",
+    "build:vite": "vite build",
+    "tauri": "tauri",
+    "preview": "vite preview",
+    "dist:mac": "npm run build && tauri build",
+    "dist:win": "npm run build && tauri build --target x86_64-pc-windows-msvc"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.9.6",
+    "@types/pngjs": "^6.0.5",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "pngjs": "^7.0.0",
+    "typescript": "^5.7.2",
+    "unplugin-auto-import": "^21.1.0",
+    "unplugin-vue-components": "^32.1.0",
+    "vite": "^5.4.11",
+    "vue": "^3.5.13"
+  },
+  "dependencies": {
+    "@icon-park/vue-next": "^1.4.2",
+    "@tauri-apps/api": "^2.9.1",
+    "naive-ui": "^2.45.3"
+  }
+}

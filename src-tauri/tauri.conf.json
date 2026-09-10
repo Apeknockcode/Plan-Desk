@@ -1,0 +1,53 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "PlanDesk",
+  "version": "1.4.0",
+  "identifier": "com.qiyuan.plandesk",
+  "build": {
+    "beforeDevCommand": "npm run dev:vite",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build:vite",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "macOSPrivateApi": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "PlanDesk",
+        "width": 1100,
+        "height": 760,
+        "minWidth": 860,
+        "minHeight": 560,
+        "visible": false,
+        "decorations": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "backgroundColor": "#16140f"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [
+      "../build/icon.png",
+      "../build/trayTemplate.png",
+      "../build/trayTemplate@2x.png"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "10.15"
+    },
+    "category": "Productivity"
+  }
+}

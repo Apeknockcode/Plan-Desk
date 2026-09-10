@@ -1,0 +1,43 @@
+@import './theme.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Tauri: 使用 data-tauri-drag-region 属性标记可拖拽区域 */
+.drag-region[data-tauri-drag-region] {
+  user-select: none;
+}
+
+.no-drag {
+  user-select: auto;
+}
+
+.i-icon {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: middle;
+}
+
+/* macOS hiddenInset title bar — keep content below traffic lights */
+html.platform-mac .titlebar-safe {
+  height: 52px;
+  flex-shrink: 0;
+}
+
+html.platform-mac .titlebar-safe--main {
+  width: 100%;
+}

@@ -1,0 +1,23 @@
+[package]
+name = "plan-desk"
+version = "1.4.0"
+description = "PlanDesk — 备忘录与待办桌面应用"
+authors = ["QiYuan"]
+edition = "2021"
+
+[lib]
+name = "plan_desk_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "macos-private-api"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-autostart = "2"
+tauri-plugin-global-shortcut = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
