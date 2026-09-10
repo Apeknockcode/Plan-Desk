@@ -4,6 +4,23 @@
 
 **当前版本：[1.4.0](CHANGELOG.md)**
 
+## 界面预览
+
+<p align="center">
+  <img src="docs/screenshots/welcome.png" alt="欢迎页" width="720" />
+</p>
+<p align="center"><sub>欢迎页 — 开始你的第一个计划</sub></p>
+
+<p align="center">
+  <img src="docs/screenshots/plan-empty.png" alt="计划管理" width="720" />
+</p>
+<p align="center"><sub>计划管理 — 侧边栏树形导航与事项录入</sub></p>
+
+<p align="center">
+  <img src="docs/screenshots/widget-form.png" alt="添加桌面组件" width="720" />
+</p>
+<p align="center"><sub>桌面组件 — 绑定计划并选择桌宠伙伴</sub></p>
+
 ## 功能
 
 - **计划管理**：创建、重命名、删除计划；侧边栏树形导航（进行中 / 已完成）
