@@ -589,6 +589,9 @@ onMounted(async () => {
     selectedMenuKey.value = `${planId}:active`
     selectedItemId.value = null
   })
+  window.planDesk.onWindowShown?.(() => {
+    void document.body.offsetHeight
+  })
 })
 
 onUnmounted(() => {

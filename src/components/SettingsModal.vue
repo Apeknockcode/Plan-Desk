@@ -44,11 +44,18 @@ const navItems: { key: SettingsTab; label: string; desc: string }[] = [
   { key: 'data', label: '数据', desc: '备份恢复' }
 ]
 
-const themeOptions: { value: ThemePreference; label: string; hint: string; mock: string }[] = [
-  { value: 'light', label: '浅色', hint: '明亮清爽', mock: 'light' },
-  { value: 'dark', label: '深色', hint: '夜间护眼', mock: 'dark' },
-  { value: 'system', label: '跟随系统', hint: '随 macOS 切换', mock: 'system' }
-]
+const themeOptions = computed(() => {
+  const systemHint = isMac ? '随 macOS 切换' : '随 Windows 切换'
+  return [
+    { value: 'light' as ThemePreference, label: '浅色', hint: '明亮清爽', mock: 'light' },
+    { value: 'dark' as ThemePreference, label: '深色', hint: '夜间护眼', mock: 'dark' },
+    { value: 'system' as ThemePreference, label: '跟随系统', hint: systemHint, mock: 'system' }
+  ]
+})
+
+const launchAtLoginHint = computed(() =>
+  isMac ? '登录 macOS 后自动启动 PlanDesk' : '登录 Windows 后自动启动 PlanDesk'
+)
 
 const planOptions = computed(() =>
   props.projects.map((project) => ({ label: project.name, value: project.id }))
@@ -216,6 +223,8 @@ async function resetAllShortcuts() {
   <NModal
     :show="show"
     :mask-closable="!recordingShortcutId"
+    :block-scroll="true"
+    display-directive="if"
     transform-origin="center"
     class="settings-modal-root"
     @update:show="emit('update:show', $event)"
@@ -273,7 +282,7 @@ async function resetAllShortcuts() {
               <div class="settings-stack">
                 <SettingToggleRow
                   label="开机自启"
-                  hint="登录 macOS 后自动启动 PlanDesk"
+                  :hint="launchAtLoginHint"
                   :value="launchAtLogin"
                   @update:value="onLaunchAtLoginChange"
                 />
@@ -420,14 +429,22 @@ async function resetAllShortcuts() {
 </template>
 
 <style scoped>
+.settings-modal-root :deep(.n-modal-mask) {
+  background-color: rgba(0, 0, 0, 0.55) !important;
+}
+
 .settings-modal-root :deep(.n-modal-body-wrapper) {
   padding: 0;
 }
 
 .settings-modal-root :deep(.n-modal-body) {
   padding: 0;
-  background: transparent;
+  background: #1c1a18;
   box-shadow: none;
+}
+
+html[data-theme='light'] .settings-modal-root :deep(.n-modal-body) {
+  background: #ffffff;
 }
 
 .settings-shell {
@@ -438,7 +455,7 @@ async function resetAllShortcuts() {
   flex-direction: column;
   border-radius: 14px;
   overflow: hidden;
-  background: var(--pd-panel-bg, rgba(28, 26, 24, 0.98));
+  background: #1c1a18;
   border: 1px solid var(--pd-panel-border, rgba(255, 255, 255, 0.08));
   box-shadow:
     0 24px 64px rgba(0, 0, 0, 0.35),

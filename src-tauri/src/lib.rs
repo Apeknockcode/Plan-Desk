@@ -110,6 +110,39 @@ fn is_pet_mode(mode: Option<&str>) -> bool {
     matches!(mode, Some("pet") | Some("pet-stage"))
 }
 
+fn pet_min_size() -> (f64, f64) {
+    if cfg!(any(target_os = "macos", target_os = "windows")) {
+        (128.0, 128.0)
+    } else {
+        (72.0, 96.0)
+    }
+}
+
+fn apply_widget_window_policies(win: &WebviewWindow, is_pet: bool) {
+    let _ = win.set_skip_taskbar(true);
+    let _ = win.set_background_color(Some(tauri::window::Color(0, 0, 0, 0)));
+    if is_pet {
+        let _ = win.set_shadow(false);
+    }
+}
+
+fn load_tray_icon(app: &AppHandle) -> Result<tauri::image::Image<'static>, String> {
+    #[cfg(target_os = "windows")]
+    if let Ok(dir) = app.path().resource_dir() {
+        let path = dir.join("trayTemplate.png");
+        if path.exists() {
+            if let Ok(icon) = tauri::image::Image::from_path(path) {
+                return Ok(icon.to_owned());
+            }
+        }
+    }
+
+    app.default_window_icon()
+        .cloned()
+        .map(|icon| icon.to_owned())
+        .ok_or_else(|| "missing app icon".to_string())
+}
+
 fn widget_label(id: &str) -> String {
     format!("widget-{id}")
 }
@@ -195,10 +228,45 @@ fn toggle_item_completed(app: &AppHandle, item_id: &str, completed: bool) -> Res
     Ok(())
 }
 
+#[cfg(target_os = "windows")]
+fn refresh_main_window(win: &WebviewWindow) {
+    let _ = win.set_background_color(Some(tauri::window::Color(0x16, 0x14, 0x0f, 0xff)));
+    if let Ok(size) = win.inner_size() {
+        let w = size.width;
+        let h = size.height;
+        if w > 2 && h > 2 {
+            let _ = win.set_size(tauri::Size::Physical(tauri::PhysicalSize {
+                width: w.saturating_sub(1),
+                height: h,
+            }));
+            let _ = win.set_size(tauri::Size::Physical(tauri::PhysicalSize {
+                width: w,
+                height: h,
+            }));
+        }
+    }
+}
+
 fn show_main_window(app: &AppHandle) {
     if let Some(win) = app.get_webview_window("main") {
+        let _ = win.unminimize();
         let _ = win.show();
+        #[cfg(target_os = "windows")]
+        refresh_main_window(&win);
         let _ = win.set_focus();
+        let _ = win.emit("app:window-shown", ());
+    }
+}
+
+fn hide_main_window(_app: &AppHandle, win: &WebviewWindow) {
+    #[cfg(target_os = "windows")]
+    {
+        let _ = win.minimize();
+        return;
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = win.hide();
     }
 }
 
@@ -296,7 +364,10 @@ fn open_widget_window(app: &AppHandle, config: &Value) -> Result<(), String> {
     let label = widget_label(id);
 
     if let Some(existing) = app.get_webview_window(&label) {
+        let display_mode = config.get("displayMode").and_then(|v| v.as_str());
+        apply_widget_window_policies(&existing, is_pet_mode(display_mode));
         let _ = existing.show();
+        apply_widget_window_policies(&existing, is_pet_mode(display_mode));
         let _ = existing.set_focus();
         return Ok(());
     }
@@ -325,14 +396,14 @@ fn open_widget_window(app: &AppHandle, config: &Value) -> Result<(), String> {
     .background_color(tauri::window::Color(0, 0, 0, 0));
 
     if is_pet {
-        builder = builder
-            .min_inner_size(72.0, 96.0)
-            .shadow(false);
+        let (min_w, min_h) = pet_min_size();
+        builder = builder.min_inner_size(min_w, min_h).shadow(false);
     } else {
         builder = builder.min_inner_size(240.0, 200.0);
     }
 
     let win = builder.build().map_err(|e| e.to_string())?;
+    apply_widget_window_policies(&win, is_pet);
     let _ = win.set_always_on_top(true);
 
     #[cfg(target_os = "macos")]
@@ -356,8 +427,11 @@ fn open_widget_window(app: &AppHandle, config: &Value) -> Result<(), String> {
     });
 
     if !is_pet {
-        let _ = win.show();
-        let _ = win.set_focus();
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = win.show();
+            let _ = win.set_focus();
+        }
     }
 
     Ok(())
@@ -580,11 +654,12 @@ fn apply_dock_visibility(_app: &AppHandle, _hide: bool) {}
 
 fn sync_menu_bar_from_prefs(app: &AppHandle) -> Result<(), String> {
     let store = read_store_raw(app)?;
+    let default_menu_bar = is_mac() || cfg!(target_os = "windows");
     let menu_bar_enabled = store
         .get("prefs")
         .and_then(|p| p.get("menuBarEnabled"))
         .and_then(|v| v.as_bool())
-        .unwrap_or(is_mac());
+        .unwrap_or(default_menu_bar);
     let hide_dock = store
         .get("prefs")
         .and_then(|p| p.get("hideDockIcon"))
@@ -765,10 +840,7 @@ fn ensure_tray(app: &AppHandle) -> Result<(), String> {
     }
 
     let menu = build_tray_menu(app)?;
-    let icon = app
-        .default_window_icon()
-        .cloned()
-        .ok_or_else(|| "missing app icon".to_string())?;
+    let icon = load_tray_icon(app)?;
 
     let app_handle = app.clone();
     TrayIconBuilder::with_id("main-tray")
@@ -1079,11 +1151,24 @@ fn widget_minimize(window: WebviewWindow) -> Result<(), String> {
     window.minimize().map_err(|e| e.to_string())
 }
 
+fn widget_surface_ready(window: WebviewWindow, is_pet: bool) -> Result<(), String> {
+    apply_widget_window_policies(&window, is_pet);
+    let _ = window.show();
+    apply_widget_window_policies(&window, is_pet);
+    if is_pet {
+        let _ = window.set_focus();
+    }
+    Ok(())
+}
+
 #[tauri::command]
 fn widget_pet_ready(window: WebviewWindow) -> Result<(), String> {
-    let _ = window.show();
-    let _ = window.set_focus();
-    Ok(())
+    widget_surface_ready(window, true)
+}
+
+#[tauri::command]
+fn widget_list_ready(window: WebviewWindow) -> Result<(), String> {
+    widget_surface_ready(window, false)
 }
 
 #[tauri::command]
@@ -1135,6 +1220,7 @@ fn widget_end_drag(window: WebviewWindow, state: State<'_, AppState>) -> Result<
 
 #[tauri::command]
 fn widget_refresh_transparency(window: WebviewWindow) -> Result<bool, String> {
+    let _ = window.set_skip_taskbar(true);
     let _ = window.set_background_color(Some(tauri::window::Color(0, 0, 0, 0)));
     Ok(true)
 }
@@ -1161,8 +1247,11 @@ fn widget_set_size(
         })
     });
     let is_pet = is_pet_mode(display_mode.as_deref());
-    let min_w = if is_pet { 72.0 } else { 240.0 };
-    let min_h = if is_pet { 96.0 } else { 200.0 };
+    let (min_w, min_h) = if is_pet {
+        pet_min_size()
+    } else {
+        (240.0, 200.0)
+    };
     let w = width.max(min_w);
     let h = height.max(min_h);
     window
@@ -1241,7 +1330,16 @@ fn quick_add_close(app: AppHandle) -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let mut builder = tauri::Builder::default();
+
+    #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
+    {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            show_main_window(app);
+        }));
+    }
+
+    builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_autostart::init(
@@ -1278,6 +1376,7 @@ pub fn run() {
             widget_get_id,
             widget_minimize,
             widget_pet_ready,
+            widget_list_ready,
             widget_begin_drag,
             widget_drag_to,
             widget_end_drag,
@@ -1297,7 +1396,7 @@ pub fn run() {
                             if !state.is_quitting.load(Ordering::SeqCst) {
                                 api.prevent_close();
                                 if let Some(w) = app_handle.get_webview_window(&label) {
-                                    let _ = w.hide();
+                                    hide_main_window(&app_handle, &w);
                                 }
                             }
                         }
@@ -1307,12 +1406,22 @@ pub fn run() {
                     }
                 });
                 let _ = win.show();
+                #[cfg(target_os = "windows")]
+                refresh_main_window(&win);
                 let _ = win.set_focus();
             }
 
             let _ = sync_launch_at_login(app.handle());
             let _ = sync_menu_bar_from_prefs(app.handle());
-            open_all_widgets(app.handle());
+
+            let widget_app = app.handle().clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(600));
+                let handle = widget_app.clone();
+                let _ = widget_app.run_on_main_thread(move || {
+                    open_all_widgets(&handle);
+                });
+            });
 
             let store = read_store_raw(app.handle()).unwrap_or(json!({}));
             let shortcuts = store

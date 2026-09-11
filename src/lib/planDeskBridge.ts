@@ -139,6 +139,7 @@ const mainApi = {
   onOpenSettings: (callback: () => void) => onEvent('app:open-settings', () => callback()),
   onSelectPlan: (callback: (planId: string) => void) =>
     onEvent('app:select-plan', (planId) => callback(planId as string)),
+  onWindowShown: (callback: () => void) => onEvent('app:window-shown', () => callback()),
   exportStoreDialog: () => invoke<{ ok: boolean; path?: string; error?: string }>('store_export_dialog'),
   importStoreDialog: () => invoke<{ ok: boolean; error?: string }>('store_import_dialog'),
   getDataDirectory: () => invoke<string>('store_get_data_dir'),
@@ -176,6 +177,9 @@ const widgetApi = {
     invoke<boolean>('widget_set_size', { width, height }),
   showPetWidget: () => {
     void invoke('widget_pet_ready')
+  },
+  showListWidget: () => {
+    void invoke('widget_list_ready')
   },
   beginWidgetDrag: (screenX: number, screenY: number) => {
     void invoke('widget_begin_drag', { screenX, screenY })

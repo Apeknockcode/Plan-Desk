@@ -9,7 +9,7 @@ import { resolvePetState } from '@/lib/petAtlas'
 import { maxHorizontalSpread } from '@/lib/petStageInteraction'
 import { Close } from '@/ui/icons'
 import PlanDeskLogo from '@/components/PlanDeskLogo.vue'
-import { PET_COLLAPSED, PET_EXPANDED, petStageSize } from '@/lib/widgetLayout'
+import { PET_COLLAPSED, PET_EXPANDED, PET_WIN_SAFE, petStageSize } from '@/lib/widgetLayout'
 import { getStageMembers, isPetWidget } from '@/lib/widgetStage'
 import { usePlanStore, filterItems, projectHasOverdue } from '@/lib/store'
 import type { PetInteraction, PetState, WidgetConfig } from '@/lib/types'
@@ -35,6 +35,7 @@ const dragRunDirection = ref<'left' | 'right'>('right')
 const jumpUntil = ref<Record<string, number>>({})
 const localDragging = ref(false)
 const isMac = window.planDesk.platform === 'darwin'
+const isWindows = window.planDesk.platform === 'win32'
 
 const displayMode = computed(() => widgetConfig.value?.displayMode ?? 'list')
 const isPetMode = computed(() => isPetWidget(displayMode.value))
@@ -121,28 +122,34 @@ async function syncPetWindowSize() {
     height = size.height
   }
 
+  if (isWindows) {
+    width = Math.max(width, PET_WIN_SAFE.width)
+    height = Math.max(height, PET_WIN_SAFE.height)
+  }
+
   await window.planDesk.setWidgetSize?.(width, height)
   await window.planDesk.refreshWidgetTransparency?.()
 
   if (!petReadySent.value) {
     petReadySent.value = true
     window.planDesk.showPetWidget?.()
-    if (isMac) {
-      startMacTransparencyGuard()
-    }
+    startTransparencyGuard()
   }
 }
 
-function startMacTransparencyGuard() {
+function startTransparencyGuard() {
   window.clearInterval(transparencyTimer)
   let ticks = 0
+  const maxTicks = isWindows ? 10 : 6
+  const intervalMs = isWindows ? 500 : 2000
+  void window.planDesk.refreshWidgetTransparency?.()
   transparencyTimer = window.setInterval(() => {
     void window.planDesk.refreshWidgetTransparency?.()
     ticks += 1
-    if (ticks >= 6) {
+    if (ticks >= maxTicks) {
       window.clearInterval(transparencyTimer)
     }
-  }, 2000)
+  }, intervalMs)
 }
 
 function schedulePetWindowSync() {
@@ -428,6 +435,8 @@ onMounted(async () => {
     expandedProjectId.value = null
     await nextTick()
     startPetResizeObserver()
+  } else if (isWindows && widgetConfig.value) {
+    window.planDesk.showListWidget?.()
   }
 
   unsubStore = window.planDesk.onStoreUpdated(async () => {

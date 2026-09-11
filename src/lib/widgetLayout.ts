@@ -36,8 +36,9 @@ export const LIST_DEFAULT = { width: 260, height: 280 }
 
 export const PET_MIN = { width: 72, height: 96 }
 
-/** macOS Electron <35: transparent windows break at very small sizes */
+/** Transparent windows break at very small sizes on macOS / Windows WebView2 */
 export const PET_MAC_SAFE = { width: 128, height: 128 }
+export const PET_WIN_SAFE = { width: 128, height: 128 }
 
 export function petStageCollapsedWidth(memberCount: number): number {
   const count = Math.max(1, memberCount)
