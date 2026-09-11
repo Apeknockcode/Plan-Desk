@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.4.2] - 2026-09-12
+
+### Fixed
+
+- Windows：关闭后重新打开主窗口黑屏（WebView2 重绘、单实例、最小化替代 hide）
+- Windows：设置弹窗背景穿透
+- Windows：添加桌面宠物/组件黑屏与任务栏重复图标
+- Windows CI：启用 `image-png` 以加载托盘图标
+
 ## [1.4.0] - 2026-09-08
 
 ### Added
