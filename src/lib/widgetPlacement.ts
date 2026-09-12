@@ -1,4 +1,4 @@
-import { defaultWidgetSize, PET_COLLAPSED } from './widgetLayout'
+import { defaultWidgetSize, PET_COLLAPSED, PET_WIN_SAFE } from './widgetLayout'
 import { getStageMembers, isPetWidget } from './widgetStage'
 import type { WidgetConfig } from './types'
 
@@ -24,6 +24,11 @@ export function normalizeWidgetPlacement(config: WidgetConfig): WidgetConfig {
     const size = defaultWidgetSize(mode === 'pet-stage' ? 'pet-stage' : 'pet', false, memberCount)
     width = size.width
     height = size.height
+    const isWindows = navigator.platform.toLowerCase().includes('win')
+    if (isWindows) {
+      width = Math.max(width, PET_WIN_SAFE.width)
+      height = Math.max(height, PET_WIN_SAFE.height)
+    }
   }
 
   const isMac = navigator.platform.toLowerCase().includes('mac')

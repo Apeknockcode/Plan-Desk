@@ -58,3 +58,7 @@ html.widget-pet-mode .pet-shell {
   align-items: flex-start;
   overflow: hidden;
 }
+
+html.widget-desktop .pet-shell--expanded {
+  overflow: visible;
+}

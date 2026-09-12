@@ -118,6 +118,28 @@ fn pet_min_size() -> (f64, f64) {
     }
 }
 
+const MAIN_MIN_WIDTH: u32 = 860;
+const MAIN_MIN_HEIGHT: u32 = 560;
+const MAIN_DEFAULT_WIDTH: u32 = 1100;
+const MAIN_DEFAULT_HEIGHT: u32 = 760;
+
+fn main_window_size_sane(width: u32, height: u32) -> bool {
+    width >= MAIN_MIN_WIDTH && height >= MAIN_MIN_HEIGHT
+}
+
+fn ensure_main_window_size(win: &WebviewWindow) {
+    let Ok(size) = win.inner_size() else {
+        return;
+    };
+    if main_window_size_sane(size.width, size.height) {
+        return;
+    }
+    let _ = win.set_size(tauri::Size::Logical(tauri::LogicalSize {
+        width: MAIN_DEFAULT_WIDTH as f64,
+        height: MAIN_DEFAULT_HEIGHT as f64,
+    }));
+}
+
 fn apply_widget_window_policies(win: &WebviewWindow, is_pet: bool) {
     let _ = win.set_skip_taskbar(true);
     let _ = win.set_background_color(Some(tauri::window::Color(0, 0, 0, 0)));
@@ -250,6 +272,7 @@ fn refresh_main_window(win: &WebviewWindow) {
 fn show_main_window(app: &AppHandle) {
     if let Some(win) = app.get_webview_window("main") {
         let _ = win.unminimize();
+        ensure_main_window_size(&win);
         let _ = win.show();
         #[cfg(target_os = "windows")]
         refresh_main_window(&win);
@@ -434,6 +457,24 @@ fn open_widget_window(app: &AppHandle, config: &Value) -> Result<(), String> {
         }
     }
 
+    #[cfg(target_os = "windows")]
+    if is_pet {
+        let app_fb = app.clone();
+        let label_fb = label.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(1800));
+            let _ = app_fb.run_on_main_thread(move || {
+                let Some(win) = app_fb.get_webview_window(&label_fb) else {
+                    return;
+                };
+                if win.is_visible().unwrap_or(true) {
+                    return;
+                }
+                let _ = widget_surface_ready(win, true);
+            });
+        });
+    }
+
     Ok(())
 }
 
@@ -449,6 +490,13 @@ fn open_all_widgets(app: &AppHandle) {
 
 fn save_main_window_bounds(app: &AppHandle) {
     let Some(win) = app.get_webview_window("main") else { return };
+    if win.is_minimized().unwrap_or(false) {
+        return;
+    }
+    let Ok(size) = win.inner_size() else { return };
+    if !main_window_size_sane(size.width, size.height) {
+        return;
+    }
     let Ok(pos) = win.outer_position() else { return };
     let Ok(size) = win.outer_size() else { return };
     let Ok(mut store) = read_store_raw(app) else { return };
@@ -493,11 +541,11 @@ fn restore_main_window_bounds(app: &AppHandle) {
         bounds.get("width").and_then(|v| v.as_u64()),
         bounds.get("height").and_then(|v| v.as_u64()),
     ) {
-        let _ = win.set_size(tauri::Size::Physical(tauri::PhysicalSize {
-            width: w as u32,
-            height: h as u32,
-        }));
+        let width = (w as u32).max(MAIN_MIN_WIDTH);
+        let height = (h as u32).max(MAIN_MIN_HEIGHT);
+        let _ = win.set_size(tauri::Size::Physical(tauri::PhysicalSize { width, height }));
     }
+    ensure_main_window_size(&win);
 }
 
 fn letter_code(c: char) -> Option<Code> {

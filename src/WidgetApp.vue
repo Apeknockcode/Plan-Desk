@@ -123,17 +123,24 @@ async function syncPetWindowSize() {
   }
 
   if (isWindows) {
+    const measured = el.getBoundingClientRect()
+    width = Math.ceil(Math.max(width, measured.width + 8))
+    height = Math.ceil(Math.max(height, measured.height + 8))
     width = Math.max(width, PET_WIN_SAFE.width)
     height = Math.max(height, PET_WIN_SAFE.height)
   }
 
-  await window.planDesk.setWidgetSize?.(width, height)
-  await window.planDesk.refreshWidgetTransparency?.()
-
-  if (!petReadySent.value) {
-    petReadySent.value = true
-    window.planDesk.showPetWidget?.()
-    startTransparencyGuard()
+  try {
+    await window.planDesk.setWidgetSize?.(width, height)
+    await window.planDesk.refreshWidgetTransparency?.()
+  } catch (error) {
+    console.error('sync pet window size failed', error)
+  } finally {
+    if (!petReadySent.value) {
+      petReadySent.value = true
+      window.planDesk.showPetWidget?.()
+      startTransparencyGuard()
+    }
   }
 }
 

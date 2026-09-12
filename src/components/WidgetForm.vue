@@ -120,13 +120,19 @@ async function create() {
     height
   }
 
-  const { created } = await addWidget(config)
-  if (created) {
-    message.success('已添加到桌面')
-    emit('created')
-  } else {
-    message.info('该计划已有桌面组件，已为你聚焦')
-    close()
+  try {
+    const { created } = await addWidget(config)
+    if (created) {
+      message.success('已添加到桌面')
+      emit('created')
+      close()
+    } else {
+      message.info('该计划已有桌面组件，已为你聚焦')
+      close()
+    }
+  } catch (error) {
+    console.error('create widget failed', error)
+    message.error('创建桌面组件失败，请重试')
   }
 }
 </script>

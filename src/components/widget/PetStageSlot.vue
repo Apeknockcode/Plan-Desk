@@ -258,5 +258,19 @@ function onContextMenu(event: MouseEvent) {
   padding: 4px 6px 8px;
   overflow-x: hidden;
   overflow-y: auto;
+  scrollbar-gutter: auto;
+}
+
+html.widget-desktop .pet-dialog--expanded :deep(.widget-list-wrap) {
+  scrollbar-width: thin;
+}
+
+html.widget-desktop .pet-dialog--expanded :deep(.widget-list-wrap::-webkit-scrollbar) {
+  width: 6px;
+}
+
+html.widget-desktop .pet-dialog--expanded :deep(.widget-list-wrap::-webkit-scrollbar-thumb) {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
 }
 </style>
