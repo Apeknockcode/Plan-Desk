@@ -140,6 +140,7 @@ const mainApi = {
   onSelectPlan: (callback: (planId: string) => void) =>
     onEvent('app:select-plan', (planId) => callback(planId as string)),
   onWindowShown: (callback: () => void) => onEvent('app:window-shown', () => callback()),
+  onWindowMinimized: (callback: () => void) => onEvent('app:window-minimized', () => callback()),
   exportStoreDialog: () => invoke<{ ok: boolean; path?: string; error?: string }>('store_export_dialog'),
   importStoreDialog: () => invoke<{ ok: boolean; error?: string }>('store_import_dialog'),
   getDataDirectory: () => invoke<string>('store_get_data_dir'),

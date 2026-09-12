@@ -140,6 +140,48 @@ fn ensure_main_window_size(win: &WebviewWindow) {
     }));
 }
 
+fn window_scale(win: &WebviewWindow) -> f64 {
+    win.scale_factor().unwrap_or(1.0)
+}
+
+fn logical_outer_position(win: &WebviewWindow) -> Option<(i64, i64)> {
+    let pos = win.outer_position().ok()?;
+    let scale = window_scale(win);
+    Some((
+        (pos.x as f64 / scale).round() as i64,
+        (pos.y as f64 / scale).round() as i64,
+    ))
+}
+
+fn logical_outer_size(win: &WebviewWindow) -> Option<(u32, u32)> {
+    let size = win.outer_size().ok()?;
+    let scale = window_scale(win);
+    Some((
+        (size.width as f64 / scale).round() as u32,
+        (size.height as f64 / scale).round() as u32,
+    ))
+}
+
+fn schedule_on_main_thread(app: &AppHandle, delay_ms: u64, task: impl FnOnce(&AppHandle) + Send + 'static) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(delay_ms));
+        let app_inner = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            task(&app_inner);
+        });
+    });
+}
+
+async fn run_blocking<T>(task: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String>
+where
+    T: Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(task)
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 fn apply_widget_window_policies(win: &WebviewWindow, is_pet: bool) {
     let _ = win.set_skip_taskbar(true);
     let _ = win.set_background_color(Some(tauri::window::Color(0, 0, 0, 0)));
@@ -281,24 +323,24 @@ fn show_main_window(app: &AppHandle) {
     }
 }
 
-fn hide_main_window(_app: &AppHandle, win: &WebviewWindow) {
+fn hide_main_window(app: &AppHandle, win: &WebviewWindow) {
     #[cfg(target_os = "windows")]
     {
         let _ = win.minimize();
+        let _ = win.emit("app:window-minimized", ());
+        let _ = app.emit("app:window-minimized", ());
         return;
     }
     #[cfg(not(target_os = "windows"))]
     {
+        let _ = app;
         let _ = win.hide();
     }
 }
 
-fn open_quick_add(app: &AppHandle) {
-    if let Some(win) = app.get_webview_window("quick-add") {
-        let _ = win.show();
-        let _ = win.set_focus();
-        let _ = win.emit("app:quick-add-focus", ());
-        return;
+fn create_quick_add_window(app: &AppHandle) -> Result<(), String> {
+    if app.get_webview_window("quick-add").is_some() {
+        return Ok(());
     }
 
     let mut builder = WebviewWindowBuilder::new(app, "quick-add", WebviewUrl::App("quick-add.html".into()))
@@ -319,19 +361,37 @@ fn open_quick_add(app: &AppHandle) {
             .hidden_title(true);
     }
 
-    if let Ok(win) = builder.build() {
-        let label = win.label().to_string();
-        let app_handle = app.clone();
-        win.on_window_event(move |event| {
-            if let WindowEvent::Focused(false) = event {
-                if let Some(w) = app_handle.get_webview_window(&label) {
-                    let _ = w.hide();
-                }
+    let win = builder.build().map_err(|e| e.to_string())?;
+    let label = win.label().to_string();
+    let app_handle = app.clone();
+    win.on_window_event(move |event| {
+        if let WindowEvent::Focused(false) = event {
+            if let Some(w) = app_handle.get_webview_window(&label) {
+                let _ = w.hide();
             }
-        });
+        }
+    });
+    Ok(())
+}
+
+fn show_quick_add(app: &AppHandle) {
+    if let Some(win) = app.get_webview_window("quick-add") {
         let _ = win.show();
         let _ = win.set_focus();
+        let _ = win.emit("app:quick-add-focus", ());
+        return;
     }
+
+    schedule_on_main_thread(app, 50, |app| {
+        if create_quick_add_window(app).is_err() {
+            return;
+        }
+        show_quick_add(app);
+    });
+}
+
+fn open_quick_add(app: &AppHandle) {
+    show_quick_add(app);
 }
 
 fn open_settings(app: &AppHandle) {
@@ -342,19 +402,22 @@ fn open_settings(app: &AppHandle) {
 }
 
 fn persist_widget_bounds(app: &AppHandle, widget_id: &str, win: &WebviewWindow, is_pet: bool) {
-    let Ok(pos) = win.outer_position() else { return };
-    let Ok(size) = win.outer_size() else { return };
+    let Some((x, y)) = logical_outer_position(win) else {
+        return;
+    };
     let Ok(mut store) = read_store_raw(app) else { return };
     let Some(widgets) = store.get_mut("widgets").and_then(|v| v.as_array_mut()) else {
         return;
     };
     for widget in widgets.iter_mut() {
         if widget.get("id").and_then(|v| v.as_str()) == Some(widget_id) {
-            widget["x"] = json!(pos.x);
-            widget["y"] = json!(pos.y);
+            widget["x"] = json!(x);
+            widget["y"] = json!(y);
             if !is_pet {
-                widget["width"] = json!(size.width);
-                widget["height"] = json!(size.height);
+                if let Some((width, height)) = logical_outer_size(win) {
+                    widget["width"] = json!(width);
+                    widget["height"] = json!(height);
+                }
             }
             break;
         }
@@ -485,7 +548,7 @@ fn open_all_widgets(app: &AppHandle) {
         return;
     };
     for widget in widgets {
-        let _ = open_widget_window(app, widget);
+        schedule_open_widget_window(app, widget.clone());
     }
 }
 
@@ -498,8 +561,8 @@ fn save_main_window_bounds(app: &AppHandle) {
     if !main_window_size_sane(size.width, size.height) {
         return;
     }
-    let Ok(pos) = win.outer_position() else { return };
-    let Ok(size) = win.outer_size() else { return };
+    let Some((x, y)) = logical_outer_position(&win) else { return };
+    let Some((width, height)) = logical_outer_size(&win) else { return };
     let Ok(mut store) = read_store_raw(app) else { return };
     if !store.get("prefs").and_then(|v| v.as_object()).is_some() {
         store["prefs"] = json!({});
@@ -510,10 +573,11 @@ fn save_main_window_bounds(app: &AppHandle) {
     prefs.insert(
         "windowBounds".to_string(),
         json!({
-            "x": pos.x,
-            "y": pos.y,
-            "width": size.width,
-            "height": size.height
+            "x": x,
+            "y": y,
+            "width": width,
+            "height": height,
+            "unit": "logical"
         }),
     );
     let _ = write_store_raw(app, &store);
@@ -529,14 +593,25 @@ fn restore_main_window_bounds(app: &AppHandle) {
         return;
     };
     let Some(win) = app.get_webview_window("main") else { return };
+    let use_logical = bounds
+        .get("unit")
+        .and_then(|v| v.as_str())
+        == Some("logical");
     if let (Some(x), Some(y)) = (
         bounds.get("x").and_then(|v| v.as_i64()),
         bounds.get("y").and_then(|v| v.as_i64()),
     ) {
-        let _ = win.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
-            x: x as i32,
-            y: y as i32,
-        }));
+        if use_logical {
+            let _ = win.set_position(tauri::Position::Logical(tauri::LogicalPosition {
+                x: x as f64,
+                y: y as f64,
+            }));
+        } else {
+            let _ = win.set_position(tauri::Position::Physical(tauri::PhysicalPosition {
+                x: x as i32,
+                y: y as i32,
+            }));
+        }
     }
     if let (Some(w), Some(h)) = (
         bounds.get("width").and_then(|v| v.as_u64()),
@@ -544,7 +619,14 @@ fn restore_main_window_bounds(app: &AppHandle) {
     ) {
         let width = (w as u32).max(MAIN_MIN_WIDTH);
         let height = (h as u32).max(MAIN_MIN_HEIGHT);
-        let _ = win.set_size(tauri::Size::Physical(tauri::PhysicalSize { width, height }));
+        if use_logical {
+            let _ = win.set_size(tauri::Size::Logical(tauri::LogicalSize {
+                width: width as f64,
+                height: height as f64,
+            }));
+        } else {
+            let _ = win.set_size(tauri::Size::Physical(tauri::PhysicalSize { width, height }));
+        }
     }
     ensure_main_window_size(&win);
 }
@@ -981,7 +1063,11 @@ async fn store_open_data_dir(app: AppHandle) -> Result<bool, String> {
 #[tauri::command]
 async fn store_export_dialog(app: AppHandle) -> Result<Value, String> {
     let date = chrono_lite_date();
-    let path = dialog_save_file(&app, format!("plandesk-backup-{date}.json"))?;
+    let app_for_dialog = app.clone();
+    let path = run_blocking(move || {
+        dialog_save_file(&app_for_dialog, format!("plandesk-backup-{date}.json"))
+    })
+    .await?;
     let Some(path) = path else {
         return Ok(json!({ "ok": false }));
     };
@@ -993,7 +1079,8 @@ async fn store_export_dialog(app: AppHandle) -> Result<Value, String> {
 
 #[tauri::command]
 async fn store_import_dialog(app: AppHandle) -> Result<Value, String> {
-    let picked = dialog_pick_file(&app, "导入数据")?;
+    let app_for_dialog = app.clone();
+    let picked = run_blocking(move || dialog_pick_file(&app_for_dialog, "导入数据")).await?;
     let Some(path) = picked else {
         return Ok(json!({ "ok": false }));
     };
@@ -1115,11 +1202,14 @@ fn app_sync_global_shortcuts(app: AppHandle, shortcuts: Value) -> Result<bool, S
 
 #[tauri::command]
 async fn fs_pick_link(app: AppHandle, kind: String) -> Result<Value, String> {
-    let picked = if kind == "folder" {
-        dialog_pick_path(&app, "选择文件夹", true)?
+    let app_for_dialog = app.clone();
+    let folder = kind == "folder";
+    let title = if folder {
+        "选择文件夹".to_string()
     } else {
-        dialog_pick_path(&app, "选择文件", false)?
+        "选择文件".to_string()
     };
+    let picked = run_blocking(move || dialog_pick_path(&app_for_dialog, &title, folder)).await?;
     let Some(path) = picked else {
         return Ok(json!({ "ok": false }));
     };
@@ -1161,13 +1251,8 @@ fn fs_path_exists(file_path: String) -> Result<Value, String> {
 }
 
 fn schedule_open_widget_window(app: &AppHandle, config: Value) {
-    let app = app.clone();
-    std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_millis(50));
-        let app_inner = app.clone();
-        let _ = app.run_on_main_thread(move || {
-            let _ = open_widget_window(&app_inner, &config);
-        });
+    schedule_on_main_thread(app, 50, move |app| {
+        let _ = open_widget_window(app, &config);
     });
 }
 
@@ -1490,13 +1575,8 @@ pub fn run() {
             let _ = sync_launch_at_login(app.handle());
             let _ = sync_menu_bar_from_prefs(app.handle());
 
-            let widget_app = app.handle().clone();
-            std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_millis(600));
-                let handle = widget_app.clone();
-                let _ = widget_app.run_on_main_thread(move || {
-                    open_all_widgets(&handle);
-                });
+            schedule_on_main_thread(app.handle(), 600, |app| {
+                open_all_widgets(app);
             });
 
             let store = read_store_raw(app.handle()).unwrap_or(json!({}));

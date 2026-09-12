@@ -59,6 +59,9 @@ const undoState = ref<{ id: string; title: string } | null>(null)
 const dragItemId = ref<string | null>(null)
 const taskListRef = ref<InstanceType<typeof TaskListPanel> | null>(null)
 
+const isWindows = window.planDesk.platform === 'win32'
+let minimizeHintShown = false
+
 let undoTimer: ReturnType<typeof setTimeout> | undefined
 let prefsTimer: ReturnType<typeof setTimeout> | undefined
 let ignoreNextStoreUpdate = false
@@ -563,6 +566,7 @@ let unsubStore: (() => void) | undefined
 let unsubWidget: (() => void) | undefined
 let unsubSettings: (() => void) | undefined
 let unsubSelectPlan: (() => void) | undefined
+let unsubMinimized: (() => void) | undefined
 
 onMounted(async () => {
   await load()
@@ -592,6 +596,11 @@ onMounted(async () => {
   window.planDesk.onWindowShown?.(() => {
     void document.body.offsetHeight
   })
+  unsubMinimized = window.planDesk.onWindowMinimized?.(() => {
+    if (!isWindows || minimizeHintShown) return
+    minimizeHintShown = true
+    message.info('已最小化到后台，右键托盘图标可完全退出', { duration: 4500 })
+  })
 })
 
 onUnmounted(() => {
@@ -602,6 +611,7 @@ onUnmounted(() => {
   unsubWidget?.()
   unsubSettings?.()
   unsubSelectPlan?.()
+  unsubMinimized?.()
 })
 </script>
 

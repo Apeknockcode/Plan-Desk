@@ -62,3 +62,9 @@ html.widget-pet-mode .pet-shell {
 html.widget-desktop .pet-shell--expanded {
   overflow: visible;
 }
+
+html.widget-desktop .pet-shell:not(.pet-shell--expanded) {
+  justify-content: center;
+  min-width: 128px;
+  box-sizing: border-box;
+}
