@@ -1,5 +1,11 @@
 # Changelog
 
+## [1.4.4] - 2026-09-12
+
+### Fixed
+
+- Windows CI：修复 pet 窗口 fallback 的 Rust 借用错误，Release 可正常产出安装包
+
 ## [1.4.3] - 2026-09-12
 
 ### Fixed

@@ -463,8 +463,9 @@ fn open_widget_window(app: &AppHandle, config: &Value) -> Result<(), String> {
         let label_fb = label.clone();
         std::thread::spawn(move || {
             std::thread::sleep(std::time::Duration::from_millis(1800));
+            let app_handle = app_fb.clone();
             let _ = app_fb.run_on_main_thread(move || {
-                let Some(win) = app_fb.get_webview_window(&label_fb) else {
+                let Some(win) = app_handle.get_webview_window(&label_fb) else {
                     return;
                 };
                 if win.is_visible().unwrap_or(true) {
