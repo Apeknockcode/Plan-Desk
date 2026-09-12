@@ -1,6 +1,6 @@
 [package]
 name = "plan-desk"
-version = "1.4.4"
+version = "1.4.5"
 description = "PlanDesk — 备忘录与待办桌面应用"
 authors = ["QiYuan"]
 edition = "2021"

@@ -36,6 +36,7 @@ const isMac = window.planDesk.platform === 'darwin'
 
 const projectId = ref<string | undefined>()
 const petdexSlug = ref(DEFAULT_PETDEX_SLUG)
+const creating = ref(false)
 
 const usedProjectIds = computed(() => {
   const ids = new Set<string>()
@@ -96,7 +97,11 @@ function close() {
 }
 
 async function create() {
-  if (!projectId.value) return
+  if (!projectId.value) {
+    message.warning('请先选择要绑定的计划')
+    return
+  }
+  if (creating.value) return
 
   if (usedProjectIds.value.has(projectId.value)) {
     await window.planDesk.focusWidgetByProject?.(projectId.value)
@@ -120,6 +125,7 @@ async function create() {
     height
   }
 
+  creating.value = true
   try {
     const { created } = await addWidget(config)
     if (created) {
@@ -133,6 +139,8 @@ async function create() {
   } catch (error) {
     console.error('create widget failed', error)
     message.error('创建桌面组件失败，请重试')
+  } finally {
+    creating.value = false
   }
 }
 </script>
@@ -192,7 +200,8 @@ async function create() {
         <NButton quaternary @click="close">取消</NButton>
         <NButton
           type="primary"
-          :disabled="!projectId || allPlansHaveWidget"
+          :loading="creating"
+          :disabled="creating || !projectId || allPlansHaveWidget"
           @click="create"
         >
           {{ createLabel }}

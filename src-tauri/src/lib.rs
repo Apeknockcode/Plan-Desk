@@ -867,6 +867,46 @@ fn dialog_pick_path(app: &AppHandle, title: &str, folder: bool) -> Result<Option
     rx.recv().map_err(|e| e.to_string())
 }
 
+fn quit_application(app: &AppHandle) {
+    if let Some(state) = app.try_state::<AppState>() {
+        state.is_quitting.store(true, Ordering::SeqCst);
+    }
+    let labels: Vec<String> = app.webview_windows().into_keys().collect();
+    for label in labels {
+        if let Some(win) = app.get_webview_window(&label) {
+            let _ = win.destroy();
+        }
+    }
+    app.exit(0);
+}
+
+fn handle_tray_menu_action(app: &AppHandle, menu_id: &str) {
+    if let Some(item_id) = menu_id.strip_prefix("complete-") {
+        let _ = toggle_item_completed(app, item_id, true);
+        return;
+    }
+    if let Some(plan_id) = menu_id.strip_prefix("open-plan-") {
+        show_main_window(app);
+        if let Some(win) = app.get_webview_window("main") {
+            let _ = win.emit("app:select-plan", plan_id);
+        }
+        return;
+    }
+    match menu_id {
+        "quick-add" => open_quick_add(app),
+        "open-main" => show_main_window(app),
+        "new-widget" => {
+            show_main_window(app);
+            if let Some(win) = app.get_webview_window("main") {
+                let _ = win.emit("app:new-widget", ());
+            }
+        }
+        "open-settings" => open_settings(app),
+        "quit" => quit_application(app),
+        _ => {}
+    }
+}
+
 fn refresh_tray_menu(app: &AppHandle) -> Result<(), String> {
     let Some(tray) = app.tray_by_id("main-tray") else {
         return Ok(());
@@ -891,44 +931,11 @@ fn ensure_tray(app: &AppHandle) -> Result<(), String> {
     let menu = build_tray_menu(app)?;
     let icon = load_tray_icon(app)?;
 
-    let app_handle = app.clone();
     TrayIconBuilder::with_id("main-tray")
         .icon(icon)
         .menu(&menu)
         .tooltip("PlanDesk")
         .show_menu_on_left_click(is_mac())
-        .on_menu_event(move |app, event| {
-            let id = event.id().0.as_str();
-            if let Some(item_id) = id.strip_prefix("complete-") {
-                let _ = toggle_item_completed(app, item_id, true);
-                return;
-            }
-            if let Some(plan_id) = id.strip_prefix("open-plan-") {
-                show_main_window(app);
-                if let Some(win) = app.get_webview_window("main") {
-                    let _ = win.emit("app:select-plan", plan_id);
-                }
-                return;
-            }
-            match id {
-                "quick-add" => open_quick_add(app),
-                "open-main" => show_main_window(app),
-                "new-widget" => {
-                    show_main_window(app);
-                    if let Some(win) = app.get_webview_window("main") {
-                        let _ = win.emit("app:new-widget", ());
-                    }
-                }
-                "open-settings" => open_settings(app),
-                "quit" => {
-                    if let Some(state) = app.try_state::<AppState>() {
-                        state.is_quitting.store(true, Ordering::SeqCst);
-                    }
-                    app.exit(0);
-                }
-                _ => {}
-            }
-        })
         .on_tray_icon_event(|tray, event| {
             if !is_mac() {
                 if let tauri::tray::TrayIconEvent::Click {
@@ -943,7 +950,6 @@ fn ensure_tray(app: &AppHandle) -> Result<(), String> {
         .build(app)
         .map_err(|e| e.to_string())?;
 
-    let _ = app_handle;
     Ok(())
 }
 
@@ -1154,9 +1160,21 @@ fn fs_path_exists(file_path: String) -> Result<Value, String> {
     }))
 }
 
+fn schedule_open_widget_window(app: &AppHandle, config: Value) {
+    let app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        let app_inner = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            let _ = open_widget_window(&app_inner, &config);
+        });
+    });
+}
+
 #[tauri::command]
-fn widget_open(app: AppHandle, config: Value) -> Result<(), String> {
-    open_widget_window(&app, &config)
+async fn widget_open(app: AppHandle, config: Value) -> Result<(), String> {
+    schedule_open_widget_window(&app, config);
+    Ok(())
 }
 
 #[tauri::command]
@@ -1171,7 +1189,7 @@ fn widget_close(app: AppHandle, widget_id: String) -> Result<bool, String> {
 }
 
 #[tauri::command]
-fn widget_focus_by_id(app: AppHandle, widget_id: String) -> Result<bool, String> {
+async fn widget_focus_by_id(app: AppHandle, widget_id: String) -> Result<bool, String> {
     let label = widget_label(&widget_id);
     if let Some(win) = app.get_webview_window(&label) {
         let _ = win.show();
@@ -1179,15 +1197,20 @@ fn widget_focus_by_id(app: AppHandle, widget_id: String) -> Result<bool, String>
         return Ok(true);
     }
     let store = read_store_raw(&app)?;
-    if let Some(widget) = store
+    let widget = store
         .get("widgets")
         .and_then(|v| v.as_array())
-        .and_then(|widgets| widgets.iter().find(|w| w.get("id").and_then(|v| v.as_str()) == Some(widget_id.as_str())))
-    {
-        open_widget_window(&app, widget)?;
-        return Ok(true);
-    }
-    Ok(false)
+        .and_then(|widgets| {
+            widgets
+                .iter()
+                .find(|w| w.get("id").and_then(|v| v.as_str()) == Some(widget_id.as_str()))
+                .cloned()
+        });
+    let Some(widget) = widget else {
+        return Ok(false);
+    };
+    schedule_open_widget_window(&app, widget);
+    Ok(true)
 }
 
 #[tauri::command]
@@ -1435,6 +1458,10 @@ pub fn run() {
             quick_add_close
         ])
         .setup(|app| {
+            app.handle().on_menu_event(|app, event| {
+                handle_tray_menu_action(app, event.id().0.as_str());
+            });
+
             restore_main_window_bounds(app.handle());
             if let Some(win) = app.get_webview_window("main") {
                 let app_handle = app.handle().clone();
