@@ -13,7 +13,9 @@
     "build:vite": "vite build",
     "tauri": "tauri",
     "preview": "vite preview",
-    "dist:mac": "npm run build && tauri build",
+    "dist:mac": "npm run build && tauri build --target universal-apple-darwin",
+    "dist:mac:arm64": "npm run build && tauri build --target aarch64-apple-darwin",
+    "dist:mac:intel": "npm run build && tauri build --target x86_64-apple-darwin",
     "dist:win": "npm run build && tauri build --target x86_64-pc-windows-msvc"
   },
   "devDependencies": {

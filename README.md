@@ -56,11 +56,22 @@ npm run dev
 
 ### macOS
 
+默认打 **Universal** 包（同一份 DMG 同时支持 Apple 芯片与 Intel Mac）：
+
 ```bash
 npm run dist:mac
 ```
 
-输出：`src-tauri/target/release/bundle/macos/PlanDesk_*.dmg`
+输出：`src-tauri/target/universal-apple-darwin/release/bundle/dmg/PlanDesk_*.dmg`
+
+仅打单一架构时：
+
+```bash
+npm run dist:mac:arm64   # Apple M 系列
+npm run dist:mac:intel   # Intel Mac
+```
+
+从浏览器下载后若提示 **「已损坏，无法打开」**，请查看 **[docs/macos-install.md](docs/macos-install.md)**（含 `xattr -cr` 等处理方式）。
 
 ### Windows
 
@@ -100,6 +111,7 @@ npm run dist:win
 
 ## macOS 使用说明
 
+0. **安装**：优先使用 Release 中的 Universal DMG（Apple 芯片与 Intel 通用）。若提示「已损坏」，见 [docs/macos-install.md](docs/macos-install.md)，不要直接移到废纸篓。
 1. 关闭主窗口不会退出应用；可从 **Dock** 或 **顶部菜单栏图标** 重新打开
 2. 点击菜单栏图标弹出菜单：顶部显示进行中数量，列出最近事项（`[计划名] 标题`），点击即可标记完成
 3. 悬停菜单栏图标可看到进行中数量提示
