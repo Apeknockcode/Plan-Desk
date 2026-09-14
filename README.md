@@ -71,8 +71,6 @@ npm run dist:mac:arm64   # Apple M 系列
 npm run dist:mac:intel   # Intel Mac
 ```
 
-从浏览器下载后若提示 **「已损坏，无法打开」**，请查看 **[docs/macos-install.md](docs/macos-install.md)**（含 `xattr -cr` 等处理方式）。
-
 ### Windows
 
 在 Windows 电脑上：
@@ -109,9 +107,24 @@ npm run dist:win
 
 可在设置页导出 JSON 备份，或打开数据目录手动复制 `store.json`。
 
+## macOS 安装问题
+
+优先从 Release 下载 **Universal DMG**（Apple 芯片与 Intel 通用）。
+
+若打开时提示 **「PlanDesk 已损坏，无法打开」**，且对话框里写「Chrome / Safari 于 … 下载了此文件」，一般是 macOS 隔离未签名应用，**不是**安装包坏了。**不要**点「移到废纸篓」。
+
+将 PlanDesk 拖入「应用程序」后，打开「终端」执行：
+
+```bash
+xattr -cr /Applications/PlanDesk.app
+```
+
+再双击打开 PlanDesk 即可。应用若在其他位置，把路径改成你的 `.app`，例如 `xattr -cr ~/Downloads/PlanDesk.app`。
+
+也可 **右键 PlanDesk.app → 打开**，或在 **系统设置 → 隐私与安全性** 底部点 **仍要打开**。更多说明见 [docs/macos-install.md](docs/macos-install.md)。
+
 ## macOS 使用说明
 
-0. **安装**：优先使用 Release 中的 Universal DMG（Apple 芯片与 Intel 通用）。若提示「已损坏」，见 [docs/macos-install.md](docs/macos-install.md)，不要直接移到废纸篓。
 1. 关闭主窗口不会退出应用；可从 **Dock** 或 **顶部菜单栏图标** 重新打开
 2. 点击菜单栏图标弹出菜单：顶部显示进行中数量，列出最近事项（`[计划名] 标题`），点击即可标记完成
 3. 悬停菜单栏图标可看到进行中数量提示
@@ -119,6 +132,8 @@ npm run dist:win
 5. 桌面组件不会出现在 Dock / ⌘+Tab 切换中
 6. `Alt+Space` 弹出快速添加小窗，失焦自动隐藏
 7. 编辑事项 →「关联文件」→ 添加文件/文件夹；左键打开，文件夹按钮可在 Finder 中显示；路径失效时可重新选择
+
+（安装与「已损坏」提示见上文 [macOS 安装问题](#macos-安装问题)。）
 
 ## Windows 使用说明
 
