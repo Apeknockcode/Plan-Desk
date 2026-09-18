@@ -1,10 +1,12 @@
 import { createApp } from 'vue'
 import WidgetApp from './WidgetApp.vue'
 import { initPlanDeskBridge } from './lib/planDeskBridge'
+import { installWebviewContextMenu } from './lib/webviewContextMenu'
 import './styles/widget.css'
 
 async function bootstrap() {
   await initPlanDeskBridge('widget')
+  installWebviewContextMenu()
   const isMac = window.planDesk.platform === 'darwin'
   document.documentElement.classList.add('widget-page', isMac ? 'widget-mac' : 'widget-desktop')
   document.documentElement.style.background = 'transparent'

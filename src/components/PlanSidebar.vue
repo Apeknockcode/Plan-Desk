@@ -5,6 +5,7 @@ import { NBadge, NButton, NDropdown, NEmpty, NLayoutSider, NMenu, NText } from '
 import AppIcon from '@/ui/AppIcon.vue'
 import PlanDeskLogo from '@/components/PlanDeskLogo.vue'
 import {
+  Calendar,
   CheckOne,
   MoreOne,
   Plus,
@@ -12,6 +13,7 @@ import {
   Time,
   renderMenuIcon
 } from '@/ui/icons'
+import { CALENDAR_MENU_KEY, isCalendarMenuKey } from '@/lib/menuKeys'
 import { getStageMembers, isPetWidget } from '@/lib/widgetStage'
 import type { AppStore } from '@/lib/types'
 
@@ -191,12 +193,20 @@ function handlePlanContextSelect(key: string) {
   emit('planContextSelect', key, planId)
 }
 
+const planMenuValue = computed(() =>
+  isCalendarMenuKey(props.selectedMenuKey) ? null : props.selectedMenuKey
+)
+
 function onMenuUpdate(key: string) {
   if (key.includes(':')) {
     emit('update:selectedMenuKey', key)
   } else {
     emit('update:selectedMenuKey', `${key}:active`)
   }
+}
+
+function openCalendar() {
+  emit('update:selectedMenuKey', CALENDAR_MENU_KEY)
 }
 </script>
 
@@ -227,9 +237,23 @@ function onMenuUpdate(key: string) {
       </NButton>
     </div>
 
+    <div class="sider-calendar no-drag">
+      <NButton
+        block
+        quaternary
+        size="small"
+        class="sider-calendar-btn"
+        :class="{ 'sider-calendar-btn--active': isCalendarMenuKey(selectedMenuKey) }"
+        @click="openCalendar"
+      >
+        <template #icon><AppIcon :icon="Calendar" :size="16" /></template>
+        日历
+      </NButton>
+    </div>
+
     <NMenu
       v-if="menuOptions.length"
-      :value="selectedMenuKey"
+      :value="planMenuValue"
       :expanded-keys="expandedKeys"
       class="sider-menu no-drag"
       :options="menuOptions"
@@ -335,7 +359,21 @@ function onMenuUpdate(key: string) {
 }
 
 .sider-add {
-  padding: 0 14px 14px;
+  padding: 0 14px 10px;
+}
+
+.sider-calendar {
+  padding: 0 14px 12px;
+}
+
+.sider-calendar-btn {
+  justify-content: flex-start;
+  font-weight: 500;
+}
+
+.sider-calendar-btn--active {
+  background: var(--pd-menu-active-bg) !important;
+  font-weight: 600;
 }
 
 .sider-add-btn {

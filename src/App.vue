@@ -3,6 +3,7 @@ import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, 
 import { NButton, NEmpty, NInput, NLayout, NModal, NSpace, NSpin, NText, useDialog, useMessage } from 'naive-ui'
 import PlanSidebar from '@/components/PlanSidebar.vue'
 import TaskListPanel from '@/components/TaskListPanel.vue'
+import CalendarPanel from '@/components/CalendarPanel.vue'
 const ItemForm = defineAsyncComponent(() => import('@/components/ItemForm.vue'))
 const WidgetForm = defineAsyncComponent(() => import('@/components/WidgetForm.vue'))
 const SettingsModal = defineAsyncComponent(() => import('@/components/SettingsModal.vue'))
@@ -15,6 +16,8 @@ import { initThemeFromPrefs } from '@/composables/useThemePreference'
 import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
 import { resolveShortcuts } from '@/lib/shortcuts'
 import { pickPlanColor } from '@/lib/planColors'
+import { itemsDueOnDate, toDateKey } from '@/lib/calendarDate'
+import { CALENDAR_MENU_KEY, isCalendarMenuKey } from '@/lib/menuKeys'
 import type { PlanItem } from '@/lib/types'
 
 const {
@@ -58,6 +61,9 @@ const editingItem = ref<PlanItem | null>(null)
 const undoState = ref<{ id: string; title: string } | null>(null)
 const dragItemId = ref<string | null>(null)
 const taskListRef = ref<InstanceType<typeof TaskListPanel> | null>(null)
+const calendarRef = ref<InstanceType<typeof CalendarPanel> | null>(null)
+const calendarSelectedKey = ref(toDateKey(new Date()))
+const calendarAddPlanId = ref<string | null>(null)
 
 const isWindows = window.planDesk.platform === 'win32'
 let minimizeHintShown = false
@@ -71,15 +77,72 @@ function arraysEqual(a: string[], b: string[]): boolean {
   return a.length === b.length && a.every((v, i) => v === b[i])
 }
 
+const isCalendarView = computed(() => isCalendarMenuKey(selectedMenuKey.value))
+
 const selectedPlanId = computed(() => {
-  if (!selectedMenuKey.value) return null
+  if (!selectedMenuKey.value || isCalendarView.value) return null
   return selectedMenuKey.value.split(':')[0] ?? null
 })
 
 const statusFilter = computed((): StatusFilter | null => {
-  if (!selectedMenuKey.value?.includes(':')) return null
+  if (!selectedMenuKey.value?.includes(':') || isCalendarView.value) return null
   return selectedMenuKey.value.split(':')[1] as StatusFilter
 })
+
+function resolveDefaultPlanId(): string | null {
+  const projects = store.value.projects
+  if (!projects.length) return null
+  const preferred = store.value.prefs.defaultPlanId
+  if (preferred && projects.some((p) => p.id === preferred)) return preferred
+  return projects[0].id
+}
+
+function ensureCalendarAddPlanId() {
+  const projects = store.value.projects
+  if (!projects.length) {
+    calendarAddPlanId.value = null
+    return
+  }
+  const cur = calendarAddPlanId.value
+  if (cur && projects.some((p) => p.id === cur)) return
+  const pref = store.value.prefs.calendarQuickAddPlanId
+  if (pref && projects.some((p) => p.id === pref)) {
+    calendarAddPlanId.value = pref
+    return
+  }
+  calendarAddPlanId.value = resolveDefaultPlanId()
+}
+
+function syncCalendarAddPlanFromPrefs() {
+  const projects = store.value.projects
+  if (!projects.length) {
+    calendarAddPlanId.value = null
+    return
+  }
+  const pref = store.value.prefs.calendarQuickAddPlanId
+  if (pref && projects.some((p) => p.id === pref)) {
+    calendarAddPlanId.value = pref
+    return
+  }
+  calendarAddPlanId.value = resolveDefaultPlanId()
+}
+
+async function persistCalendarAddPlanPref(planId: string | null) {
+  if (store.value.prefs.calendarQuickAddPlanId === planId) return
+  ignoreNextStoreUpdate = true
+  try {
+    await savePrefs({ calendarQuickAddPlanId: planId })
+  } finally {
+    setTimeout(() => {
+      ignoreNextStoreUpdate = false
+    }, 50)
+  }
+}
+
+function onCalendarAddPlanIdChange(planId: string | null) {
+  calendarAddPlanId.value = planId
+  void persistCalendarAddPlanPref(planId)
+}
 
 const selectedPlan = computed(
   () => store.value.projects.find((p) => p.id === selectedPlanId.value) ?? null
@@ -129,6 +192,12 @@ function applyPrefs() {
     }
 
     const menuKey = prefs.selectedMenuKey
+    if (menuKey === CALENDAR_MENU_KEY) {
+      if (selectedMenuKey.value !== CALENDAR_MENU_KEY) {
+        selectedMenuKey.value = CALENDAR_MENU_KEY
+      }
+      return
+    }
     if (menuKey) {
       const planId = menuKey.split(':')[0]
       if (store.value.projects.some((p) => p.id === planId)) {
@@ -180,8 +249,11 @@ function ensureSelection() {
   if (!arraysEqual(expandedKeys.value, nextExpanded)) {
     expandedKeys.value = nextExpanded
   }
+  if (isCalendarMenuKey(selectedMenuKey.value)) return
   if (!store.value.projects.length) {
-    if (selectedMenuKey.value !== null) selectedMenuKey.value = null
+    if (selectedMenuKey.value !== null && !isCalendarMenuKey(selectedMenuKey.value)) {
+      selectedMenuKey.value = null
+    }
     return
   }
   const currentPlanId = selectedMenuKey.value?.split(':')[0]
@@ -202,7 +274,10 @@ function syncThemeFromPrefs() {
   initThemeFromPrefs(store.value.prefs)
 }
 
-watch(() => store.value.projects.length, ensureSelection)
+watch(() => store.value.projects.length, () => {
+  ensureSelection()
+  ensureCalendarAddPlanId()
+})
 watch(selectedMenuKey, () => {
   selectedItemId.value = null
   scheduleSavePrefs()
@@ -210,7 +285,14 @@ watch(selectedMenuKey, () => {
 watch(expandedKeys, scheduleSavePrefs, { deep: true })
 
 function openNewItem(prefill?: string) {
-  if (!selectedPlanId.value) return
+  const planId = isCalendarView.value ? calendarAddPlanId.value : selectedPlanId.value
+  if (!planId) {
+    if (isCalendarView.value) message.info('请先选择一个计划')
+    return
+  }
+  const defaultDue = isCalendarView.value
+    ? calendarSelectedKey.value
+    : toDateKey(new Date())
   editingItem.value = prefill
     ? ({
         id: '',
@@ -218,8 +300,8 @@ function openNewItem(prefill?: string) {
         notes: '',
         category: 'todo',
         priority: 'normal',
-        dueDate: null,
-        projectId: selectedPlanId.value,
+        dueDate: defaultDue,
+        projectId: planId,
         pinned: false,
         completed: false,
         createdAt: 0,
@@ -302,14 +384,18 @@ async function onDrop(targetId: string) {
 }
 
 async function handleQuickAdd(title: string) {
-  if (!selectedPlanId.value) return
+  const planId = isCalendarView.value ? calendarAddPlanId.value : selectedPlanId.value
+  if (!planId) {
+    if (isCalendarView.value) message.info('请先选择一个计划')
+    return
+  }
   await addItem({
     title,
     notes: '',
     category: 'todo',
     priority: 'normal',
-    dueDate: null,
-    projectId: selectedPlanId.value,
+    dueDate: isCalendarView.value ? calendarSelectedKey.value : null,
+    projectId: planId,
     pinned: false,
     completed: false
   })
@@ -320,8 +406,27 @@ async function handleRemoveItem(id: string) {
   if (selectedItemId.value === id) selectedItemId.value = null
 }
 
+const calendarSelectableIds = computed(() => {
+  const onDay = itemsDueOnDate(store.value.items, calendarSelectedKey.value)
+  const active = sortPlanItems(
+    onDay.filter((i) => !i.completed),
+    false
+  )
+  const done = sortPlanItems(
+    onDay.filter((i) => i.completed),
+    true
+  )
+  return [...active, ...done].map((i) => i.id)
+})
+
+const formPlanId = computed(() =>
+  isCalendarView.value ? calendarAddPlanId.value : selectedPlanId.value
+)
+
 function moveSelection(delta: number) {
-  const items = filteredItems.value
+  const items = isCalendarView.value
+    ? calendarSelectableIds.value.map((id) => store.value.items.find((i) => i.id === id)!)
+    : filteredItems.value
   if (!items.length) return
 
   const idx = items.findIndex((i) => i.id === selectedItemId.value)
@@ -441,7 +546,12 @@ function openSearch() {
 }
 
 function openSearchResult(item: PlanItem) {
-  if (item.projectId) {
+  const dueKey = item.dueDate?.slice(0, 10)
+  if (dueKey) {
+    selectedMenuKey.value = CALENDAR_MENU_KEY
+    calendarSelectedKey.value = dueKey
+    selectedItemId.value = item.id
+  } else if (item.projectId) {
     selectedMenuKey.value = `${item.projectId}:${item.completed ? 'completed' : 'active'}`
     selectedItemId.value = item.id
   }
@@ -470,6 +580,15 @@ function closeAllModals() {
 }
 
 function focusQuickAdd() {
+  if (isCalendarView.value) {
+    ensureCalendarAddPlanId()
+    if (!calendarAddPlanId.value) {
+      message.info('请先创建一个计划')
+      return
+    }
+    nextTick(() => calendarRef.value?.focusQuickInput())
+    return
+  }
   if (!selectedPlanId.value) {
     message.info('请先选择一个计划')
     return
@@ -560,6 +679,7 @@ async function onSettingsImported() {
   syncThemeFromPrefs()
   applyPrefs()
   ensureSelection()
+  syncCalendarAddPlanFromPrefs()
 }
 
 let unsubStore: (() => void) | undefined
@@ -572,6 +692,7 @@ onMounted(async () => {
   await load()
   syncThemeFromPrefs()
   applyPrefs()
+  syncCalendarAddPlanFromPrefs()
   if (!selectedMenuKey.value) ensureSelection()
   shortcuts.attach()
   unsubStore = window.planDesk.onStoreUpdated(() => {
@@ -633,7 +754,30 @@ onUnmounted(() => {
       @plan-context-select="onPlanContextSelect"
     />
 
+    <CalendarPanel
+      v-if="isCalendarView"
+      ref="calendarRef"
+      v-model:selected-date-key="calendarSelectedKey"
+      :quick-add-plan-id="calendarAddPlanId"
+      :items="store.items"
+      :projects="store.projects"
+      @update:quick-add-plan-id="onCalendarAddPlanIdChange"
+      :selected-item-id="selectedItemId"
+      :undo-state="undoState"
+      @open-search="openSearch"
+      @quick-add="handleQuickAdd"
+      @open-new-item="openNewItem"
+      @toggle-item="toggleItem"
+      @edit-item="openEditItem"
+      @remove-item="handleRemoveItem"
+      @move-item="handleMoveItem"
+      @select-item="selectedItemId = $event"
+      @update-title="(id, t) => updateItem(id, { title: t })"
+      @undo="performUndo"
+    />
+
     <TaskListPanel
+      v-else
       ref="taskListRef"
       :selected-plan="selectedPlan"
       :status-filter="statusFilter"
@@ -685,7 +829,8 @@ onUnmounted(() => {
       v-model:show="showItemForm"
       :item="editingItem"
       :projects="store.projects"
-      :plan-id="selectedPlanId"
+      :plan-id="formPlanId"
+      :default-due-date="isCalendarView ? calendarSelectedKey : toDateKey(new Date())"
       @saved="showItemForm = false"
       @moved="onItemMoved"
     />

@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import {
   NButton,
+  NDatePicker,
   NForm,
   NFormItem,
   NInput,
@@ -20,6 +21,8 @@ const props = defineProps<{
   projects: Project[]
   /** 锁定到当前计划时隐藏计划选择（新建时） */
   planId?: string | null
+  /** 新建时默认计划日期 */
+  defaultDueDate?: string | null
 }>()
 
 const emit = defineEmits<{
@@ -34,6 +37,7 @@ const title = ref('')
 const notes = ref('')
 const projectId = ref<string | null>(null)
 const pinned = ref(false)
+const dueDate = ref<string | null>(null)
 const links = ref<ItemLink[]>([])
 
 const isEditing = computed(() => Boolean(props.item?.id))
@@ -43,26 +47,32 @@ const projectOptions = computed(() => [
   ...props.projects.map((p) => ({ label: p.name, value: p.id }))
 ])
 
-const moveOptions = computed(() =>
-  props.projects
-    .filter((p) => p.id !== props.item?.projectId)
-    .map((p) => ({ label: p.name, value: p.id }))
+const editPlanOptions = computed(() =>
+  props.projects.map((p) => ({ label: p.name, value: p.id }))
+)
+
+const showPlanSelect = computed(
+  () =>
+    (isEditing.value && editPlanOptions.value.length > 1) ||
+    (!props.planId && !isEditing.value)
 )
 
 watch(
-  () => [props.item, props.planId] as const,
-  ([item, planId]) => {
+  () => [props.item, props.planId, props.defaultDueDate] as const,
+  ([item, planId, defaultDueDate]) => {
     if (item) {
       title.value = item.title
       notes.value = item.notes
-      projectId.value = planId ?? item.projectId
+      projectId.value = item.projectId
       pinned.value = item.pinned
+      dueDate.value = item.dueDate?.slice(0, 10) ?? null
       links.value = [...(item.links ?? [])]
     } else {
       title.value = ''
       notes.value = ''
       projectId.value = planId ?? null
       pinned.value = false
+      dueDate.value = defaultDueDate?.slice(0, 10) ?? null
       links.value = []
     }
   },
@@ -83,7 +93,7 @@ async function save() {
     links: links.value,
     category: props.item?.category ?? 'todo',
     priority: props.item?.priority ?? 'normal',
-    dueDate: props.item?.dueDate ?? null,
+    dueDate: dueDate.value,
     projectId: projectId.value,
     pinned: pinned.value,
     completed: props.item?.completed ?? false
@@ -97,7 +107,8 @@ async function save() {
         title: data.title,
         notes: data.notes,
         links: data.links,
-        pinned: data.pinned
+        pinned: data.pinned,
+        dueDate: data.dueDate
       })
       emit('moved', targetPlan)
     } else {
@@ -108,13 +119,6 @@ async function save() {
   }
   emit('saved')
 }
-
-async function moveTo(planId: string) {
-  if (!props.item?.id || planId === props.item.projectId) return
-  await moveItemToPlan(props.item.id, planId)
-  projectId.value = planId
-  emit('moved', planId)
-}
 </script>
 
 <template>
@@ -122,10 +126,11 @@ async function moveTo(planId: string) {
     :show="show"
     preset="card"
     :title="item?.id ? '编辑事项' : '新建事项'"
-    style="width: 460px"
+    class="item-form-modal"
+    style="width: 440px"
     @update:show="emit('update:show', $event)"
   >
-    <NForm label-placement="top" size="small">
+    <NForm label-placement="top" size="small" class="item-form" :show-feedback="false">
       <NFormItem label="标题">
         <NInput
           v-model:value="title"
@@ -136,27 +141,33 @@ async function moveTo(planId: string) {
       </NFormItem>
 
       <NFormItem label="备注">
-        <NInput v-model:value="notes" type="textarea" placeholder="补充说明（可选）" :rows="3" />
+        <NInput v-model:value="notes" type="textarea" placeholder="可选" :rows="2" />
       </NFormItem>
 
-      <NFormItem label="关联文件（可选）">
+      <NFormItem label="关联文件">
         <ItemLinksEditor v-model="links" />
       </NFormItem>
 
-      <NFormItem v-if="!planId && !isEditing" label="所属计划">
-        <NSelect v-model:value="projectId" :options="projectOptions" clearable />
-      </NFormItem>
+      <div class="item-form__meta">
+        <NFormItem v-if="showPlanSelect" label="所属计划" class="item-form__meta-col">
+          <NSelect
+            v-model:value="projectId"
+            :options="isEditing ? editPlanOptions : projectOptions"
+            :clearable="!isEditing"
+          />
+        </NFormItem>
+        <NFormItem label="计划日期" class="item-form__meta-col">
+          <NDatePicker
+            v-model:formatted-value="dueDate"
+            type="date"
+            clearable
+            value-format="yyyy-MM-dd"
+            style="width: 100%"
+          />
+        </NFormItem>
+      </div>
 
-      <NFormItem v-if="isEditing && moveOptions.length" label="移动到">
-        <NSelect
-          :value="projectId"
-          :options="moveOptions"
-          placeholder="选择目标计划"
-          @update:value="moveTo"
-        />
-      </NFormItem>
-
-      <NFormItem label="置顶显示">
+      <NFormItem label="置顶" class="item-form__pin">
         <NSwitch v-model:value="pinned" />
       </NFormItem>
     </NForm>
@@ -171,3 +182,37 @@ async function moveTo(planId: string) {
     </template>
   </NModal>
 </template>
+
+<style scoped>
+.item-form :deep(.n-form-item) {
+  margin-bottom: 14px;
+}
+
+.item-form :deep(.n-form-item:last-child) {
+  margin-bottom: 0;
+}
+
+.item-form__meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.item-form__meta-col {
+  margin-bottom: 0 !important;
+  min-width: 0;
+}
+
+.item-form__meta:has(.item-form__meta-col:only-child) {
+  grid-template-columns: 1fr;
+}
+
+.item-form__pin :deep(.n-form-item-blank) {
+  min-height: auto;
+}
+
+.item-form__pin {
+  margin-bottom: 0 !important;
+}
+</style>

@@ -26,7 +26,7 @@ export interface PlanItem {
   category: ItemCategory
   /** @deprecated legacy — defaults to 'normal' on create */
   priority: ItemPriority
-  /** @deprecated legacy — no longer shown in UI */
+  /** 计划日期（`YYYY-MM-DD`，可选） */
   dueDate: string | null
   projectId: string | null
   pinned: boolean
@@ -97,6 +97,8 @@ export interface AppPrefs {
   selectedMenuKey: string | null
   expandedKeys: string[]
   defaultPlanId: string | null
+  /** 日历视图快速添加时使用的计划 */
+  calendarQuickAddPlanId?: string | null
   theme?: ThemePreference
   /** 主题强调色（与深浅模式配对） */
   themeAccent?: ThemeAccentId

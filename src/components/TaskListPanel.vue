@@ -215,12 +215,17 @@ defineExpose({ focusQuickInput })
 <style scoped>
 .main-pane {
   display: flex;
+  flex: 1;
   flex-direction: column;
+  min-width: 0;
+  width: 100%;
   background: var(--pd-main-bg);
 }
 
 .main-inner {
-  max-width: 820px;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
   padding: 0 36px 40px 32px;
   min-height: 100%;
 }

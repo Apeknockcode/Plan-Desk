@@ -2,6 +2,7 @@ import type { Component } from 'vue'
 import { h } from 'vue'
 import { IconProvider, DEFAULT_ICON_CONFIGS } from '@icon-park/vue-next'
 import {
+  Calendar,
   CheckOne,
   Close,
   Delete,
@@ -22,6 +23,7 @@ import {
 } from '@icon-park/vue-next'
 
 export {
+  Calendar,
   CheckOne,
   Close,
   Delete,

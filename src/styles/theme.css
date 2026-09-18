@@ -29,6 +29,14 @@ html:not([data-theme]) {
   --pd-badge-bg: #48484a;
   --pd-badge-fg: #f5f5f7;
   --pd-focus-ring: rgba(245, 245, 247, 0.35);
+  --pd-calendar-weekend: #fbbf24;
+  --pd-calendar-term: #4ade80;
+  --pd-calendar-holiday: #f87171;
+  --pd-calendar-cell-bg: rgba(255, 255, 255, 0.04);
+  --pd-calendar-cell-hover: rgba(255, 255, 255, 0.08);
+  --pd-calendar-cell-selected: rgba(255, 255, 255, 0.1);
+  --pd-calendar-dot-selected: #f5f5f7;
+  --pd-calendar-dot-selected-fg: #1c1c1e;
 }
 
 html[data-theme='light'] {
@@ -61,6 +69,14 @@ html[data-theme='light'] {
   --pd-badge-bg: #aeaeb2;
   --pd-badge-fg: #ffffff;
   --pd-focus-ring: rgba(28, 28, 30, 0.28);
+  --pd-calendar-weekend: #c2410c;
+  --pd-calendar-term: #15803d;
+  --pd-calendar-holiday: #dc2626;
+  --pd-calendar-cell-bg: #ffffff;
+  --pd-calendar-cell-hover: rgba(0, 0, 0, 0.04);
+  --pd-calendar-cell-selected: rgba(0, 0, 0, 0.05);
+  --pd-calendar-dot-selected: #1c1c1e;
+  --pd-calendar-dot-selected-fg: #ffffff;
 }
 
 body {

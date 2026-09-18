@@ -1,5 +1,6 @@
 import { ref, toRaw } from 'vue'
-import type { AppStore, Project, WidgetConfig } from './types'
+import { toDateKey } from './calendarDate'
+import type { AppStore, PlanItem, Project, WidgetConfig } from './types'
 import { createEmptyStore } from './types'
 import { migrateStore } from './migrate'
 import { sortPlanItems } from './sortPlanItems'
@@ -39,8 +40,14 @@ export function usePlanStore() {
     )
     const maxOrder = siblings.reduce((max, i) => Math.max(max, i.sortOrder ?? i.createdAt), 0)
 
+    const dueDate =
+      item.dueDate != null && String(item.dueDate).trim() !== ''
+        ? String(item.dueDate).slice(0, 10)
+        : toDateKey(new Date(now))
+
     const newItem: PlanItem = {
       ...item,
+      dueDate,
       id: crypto.randomUUID(),
       sortOrder: maxOrder + 1000,
       completedAt: item.completed ? now : null,
