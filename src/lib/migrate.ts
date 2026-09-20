@@ -84,10 +84,16 @@ export function migrateStore(raw: unknown): AppStore {
     }
   }
 
+  for (const project of projects as AppStore['projects']) {
+    if (project.notionUrl === '') project.notionUrl = null
+    if (project.obsidianPath === '') project.obsidianPath = null
+  }
+
   const prefs =
     data.prefs && typeof data.prefs === 'object'
       ? { ...createDefaultPrefs(), ...(data.prefs as AppStore['prefs']) }
       : createDefaultPrefs()
+  if (prefs.obsidianVaultPath === '') prefs.obsidianVaultPath = null
 
   return {
     version: 2,

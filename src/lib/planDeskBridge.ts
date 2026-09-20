@@ -154,6 +154,17 @@ const mainApi = {
   pickLink: (kind: 'file' | 'folder') =>
     invoke<{ ok: true; path: string; kind: 'file' | 'folder' } | { ok: false }>('fs_pick_link', {
       kind
+    }),
+  openUrl: (url: string) => invoke<{ ok: boolean; error?: string }>('fs_open_url', { url }),
+  searchObsidianVault: (vaultPath: string, query: string, limit = 12) =>
+    invoke<{ ok: boolean; hits?: { path: string; title: string }[]; error?: string }>(
+      'notes_search_vault',
+      { vaultPath, query, limit }
+    ),
+  openObsidianNote: (filePath: string, preferObsidian: boolean) =>
+    invoke<{ ok: boolean; error?: string; via?: string }>('notes_open_obsidian', {
+      filePath,
+      preferObsidian
     })
 }
 

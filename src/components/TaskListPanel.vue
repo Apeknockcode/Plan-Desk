@@ -3,7 +3,10 @@ import { computed, nextTick, ref } from 'vue'
 import { NButton, NDropdown, NInput, NLayoutContent, useDialog } from 'naive-ui'
 import TaskItem from '@/components/TaskItem.vue'
 import AppIcon from '@/ui/AppIcon.vue'
-import { MoreOne, Search } from '@/ui/icons'
+import { Link, MoreOne, Notepad, Search } from '@/ui/icons'
+import { linkBasename } from '@/lib/itemLinks'
+import { normalizeNotionUrl, planHasExternalNotes } from '@/lib/planNotes'
+import { usePlanStore } from '@/lib/store'
 import type { PlanItem, Project } from '@/lib/types'
 
 type StatusFilter = 'active' | 'completed'
@@ -20,6 +23,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   openSearch: []
+  openPlanNotes: []
   clearCompleted: []
   deletePlan: []
   quickAdd: [title: string]
@@ -37,15 +41,23 @@ const emit = defineEmits<{
 }>()
 
 const dialog = useDialog()
+const { store } = usePlanStore()
 const quickTitle = ref('')
+const preferObsidian = () => store.value.prefs.openMarkdownInObsidian !== false
 const quickInputRef = ref<{ focus: () => void } | null>(null)
 
 const statusLabel = computed(() =>
   props.statusFilter === 'completed' ? '已完成' : '进行中'
 )
 
+const showPlanNotesBar = computed(
+  () => props.selectedPlan && props.statusFilter === 'active' && planHasExternalNotes(props.selectedPlan)
+)
+
 const headerMenuOptions = computed(() => {
-  const opts: { label: string; key: string; type?: string }[] = []
+  const opts: { label: string; key: string; type?: string }[] = [
+    { label: '笔记关联…', key: 'plan-notes' }
+  ]
   if (props.statusFilter === 'completed' && props.filteredItems.length) {
     opts.push({ label: '清空已完成', key: 'clear-completed' })
   }
@@ -53,6 +65,20 @@ const headerMenuOptions = computed(() => {
   opts.push({ label: '删除计划', key: 'delete-plan' })
   return opts
 })
+
+async function openPlanNotion() {
+  const url = normalizeNotionUrl(props.selectedPlan?.notionUrl)
+  if (!url) return
+  const ok = await window.planDesk.openUrl?.(url)
+  if (!ok?.ok) dialog.warning({ title: '无法打开 Notion 链接', content: url })
+}
+
+async function openPlanObsidian() {
+  const path = props.selectedPlan?.obsidianPath?.trim()
+  if (!path) return
+  const ok = await window.planDesk.openObsidianNote?.(path, preferObsidian())
+  if (!ok?.ok) dialog.warning({ title: '无法打开', content: '路径可能已失效' })
+}
 
 async function submitQuickAdd() {
   const t = quickTitle.value.trim()
@@ -76,6 +102,10 @@ function onQuickKeydown(e: KeyboardEvent) {
 }
 
 function onHeaderMenuSelect(key: string) {
+  if (key === 'plan-notes') {
+    emit('openPlanNotes')
+    return
+  }
   if (key === 'clear-completed') {
     emit('clearCompleted')
     return
@@ -140,6 +170,28 @@ defineExpose({ focusQuickInput })
               </NDropdown>
             </div>
           </header>
+
+          <div v-if="showPlanNotesBar" class="plan-notes-bar no-drag">
+            <NButton
+              v-if="normalizeNotionUrl(selectedPlan?.notionUrl)"
+              size="tiny"
+              secondary
+              @click="openPlanNotion"
+            >
+              <template #icon><AppIcon :icon="Link" :size="14" /></template>
+              Notion
+            </NButton>
+            <NButton
+              v-if="selectedPlan?.obsidianPath?.trim()"
+              size="tiny"
+              secondary
+              @click="openPlanObsidian"
+            >
+              <template #icon><AppIcon :icon="Notepad" :size="14" /></template>
+              {{ linkBasename(selectedPlan.obsidianPath) }}
+            </NButton>
+            <NButton size="tiny" quaternary @click="emit('openPlanNotes')">管理…</NButton>
+          </div>
 
           <div
             v-if="statusFilter === 'active'"
@@ -234,6 +286,18 @@ defineExpose({ focusQuickInput })
   padding-top: 48px;
 }
 
+.plan-notes-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--pd-hover-bg, rgba(255, 255, 255, 0.04));
+  border: 1px solid var(--pd-panel-border, rgba(255, 255, 255, 0.06));
+}
+
 .main-header {
   display: flex;
   align-items: flex-start;
@@ -260,6 +324,7 @@ html.platform-mac .main-header {
   font-weight: 700;
   letter-spacing: -0.7px;
   line-height: 1.15;
+  color: var(--pd-body-fg);
 }
 
 .page-meta {
@@ -309,6 +374,11 @@ html.platform-mac .main-header {
 
 .quick-add__input :deep(.n-input__input-el) {
   font-size: 15px;
+  color: var(--pd-body-fg);
+}
+
+.quick-add__input :deep(.n-input__placeholder) {
+  color: var(--pd-muted-fg);
 }
 
 .quick-add__btn {

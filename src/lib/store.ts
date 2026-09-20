@@ -107,7 +107,7 @@ export function usePlanStore() {
 
   async function updateProject(
     id: string,
-    patch: Partial<Pick<Project, 'name' | 'color'>>
+    patch: Partial<Pick<Project, 'name' | 'color' | 'notionUrl' | 'obsidianPath'>>
   ): Promise<void> {
     const project = store.value.projects.find((p) => p.id === id)
     if (!project) return

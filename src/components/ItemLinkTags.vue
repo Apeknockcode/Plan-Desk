@@ -3,9 +3,10 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { NDropdown, NTag, NTooltip, useMessage } from 'naive-ui'
 import AppIcon from '@/ui/AppIcon.vue'
 import { FileAddition, FolderOpen, Link } from '@/ui/icons'
+import { usePlanStore } from '@/lib/store'
 import {
   findMissingLinkPaths,
-  linkBasename,
+  linkDisplayName,
   openItemLink,
   revealInFolderLabel,
   showItemInFolder
@@ -18,15 +19,18 @@ const props = defineProps<{
 }>()
 
 const message = useMessage()
+const { store } = usePlanStore()
 const missingPaths = ref<Set<string>>(new Set())
 const revealLabel = revealInFolderLabel()
+
+const preferObsidian = () => store.value.prefs.openMarkdownInObsidian !== false
 
 const visibleLinks = computed(() => props.links ?? [])
 
 const dropdownOptions = computed(() =>
   visibleLinks.value.map((link, index) => ({
     key: String(index),
-    label: linkBasename(link.path)
+    label: linkDisplayName(link)
   }))
 )
 
@@ -40,21 +44,22 @@ onMounted(() => {
 })
 
 function linkMenuOptions(link: ItemLink) {
-  return [
-    { label: '打开', key: 'open' },
-    { label: revealLabel, key: 'reveal' }
-  ]
+  const opts = [{ label: '打开', key: 'open' }]
+  if (link.kind !== 'url') {
+    opts.push({ label: revealLabel, key: 'reveal' })
+  }
+  return opts
 }
 
 async function openLink(link: ItemLink, event?: Event) {
   event?.stopPropagation()
-  if (missingPaths.value.has(link.path)) {
+  if (link.kind !== 'url' && missingPaths.value.has(link.path)) {
     message.warning('路径已失效，请在编辑事项中重新选择')
     return
   }
-  const ok = await openItemLink(link)
+  const ok = await openItemLink(link, { preferObsidian: preferObsidian() })
   if (!ok) {
-    message.warning('无法打开，文件或文件夹可能已被移动')
+    message.warning(link.kind === 'url' ? '无法打开链接' : '无法打开，文件或文件夹可能已被移动')
     await refreshMissingPaths()
   }
 }
@@ -121,10 +126,16 @@ function onTagClick(event: Event) {
             >
               <span class="link-tag-inner">
                 <AppIcon
-                  :icon="link.kind === 'folder' ? FolderOpen : FileAddition"
+                  :icon="
+                    link.kind === 'url'
+                      ? Link
+                      : link.kind === 'folder'
+                        ? FolderOpen
+                        : FileAddition
+                  "
                   :size="12"
                 />
-                {{ linkBasename(link.path) }}
+                {{ linkDisplayName(link) }}
               </span>
             </NTag>
           </template>

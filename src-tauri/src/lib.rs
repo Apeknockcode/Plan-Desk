@@ -1250,6 +1250,152 @@ fn fs_path_exists(file_path: String) -> Result<Value, String> {
     }))
 }
 
+#[tauri::command]
+async fn fs_open_url(app: AppHandle, url: String) -> Result<Value, String> {
+    let trimmed = url.trim();
+    if trimmed.is_empty() {
+        return Ok(json!({ "ok": false, "error": "链接为空" }));
+    }
+    if !trimmed.starts_with("http://") && !trimmed.starts_with("https://") {
+        return Ok(json!({ "ok": false, "error": "仅支持 http(s) 链接" }));
+    }
+    app.opener()
+        .open_url(trimmed, None::<&str>)
+        .map_err(|e| e.to_string())?;
+    Ok(json!({ "ok": true }))
+}
+
+const VAULT_SKIP_DIR_NAMES: &[&str] = &[".obsidian", ".git", ".trash", "node_modules", ".cursor"];
+
+fn vault_note_title(path: &std::path::Path, preview: &str) -> String {
+    if let Some(line) = preview.lines().find(|l| {
+        let t = l.trim();
+        t.starts_with("# ") && t.len() > 2
+    }) {
+        return line.trim_start_matches('#').trim().to_string();
+    }
+    path.file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("未命名")
+        .to_string()
+}
+
+fn vault_path_matches_query(path: &std::path::Path, query: &str, preview: &str) -> bool {
+    let q = query.to_lowercase();
+    if path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_lowercase().contains(&q))
+        .unwrap_or(false)
+    {
+        return true;
+    }
+    let title = vault_note_title(path, preview);
+    if title.to_lowercase().contains(&q) {
+        return true;
+    }
+    preview.to_lowercase().contains(&q)
+}
+
+fn scan_vault_notes(vault_path: &PathBuf, query: &str, limit: usize) -> Result<Vec<Value>, String> {
+    if query.trim().is_empty() {
+        return Ok(vec![]);
+    }
+    if !vault_path.is_dir() {
+        return Err("Obsidian 库路径无效".to_string());
+    }
+
+    let mut hits: Vec<Value> = vec![];
+    let mut stack: Vec<PathBuf> = vec![vault_path.clone()];
+    let mut visited_files: usize = 0;
+    const MAX_FILES: usize = 8000;
+
+    while let Some(dir) = stack.pop() {
+        let entries = match fs::read_dir(&dir) {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            let file_type = match entry.file_type() {
+                Ok(t) => t,
+                Err(_) => continue,
+            };
+            if file_type.is_dir() {
+                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+                if name.starts_with('.') && name != "." {
+                    if VAULT_SKIP_DIR_NAMES.contains(&name) {
+                        continue;
+                    }
+                }
+                if VAULT_SKIP_DIR_NAMES.contains(&name) {
+                    continue;
+                }
+                stack.push(path);
+                continue;
+            }
+            if !file_type.is_file() {
+                continue;
+            }
+            if path.extension().and_then(|e| e.to_str()) != Some("md") {
+                continue;
+            }
+            visited_files += 1;
+            if visited_files > MAX_FILES {
+                break;
+            }
+            let preview = fs::read_to_string(&path).unwrap_or_default();
+            let preview_short: String = preview.chars().take(8192).collect();
+            if !vault_path_matches_query(&path, query, &preview_short) {
+                continue;
+            }
+            let title = vault_note_title(&path, &preview_short);
+            hits.push(json!({
+                "path": path.to_string_lossy(),
+                "title": title
+            }));
+            if hits.len() >= limit {
+                return Ok(hits);
+            }
+        }
+        if visited_files > MAX_FILES {
+            break;
+        }
+    }
+    Ok(hits)
+}
+
+#[tauri::command]
+async fn notes_search_vault(
+    vault_path: String,
+    query: String,
+    limit: Option<u32>,
+) -> Result<Value, String> {
+    let vault = PathBuf::from(vault_path.trim());
+    let cap = limit.unwrap_or(12).min(30) as usize;
+    let hits = run_blocking(move || scan_vault_notes(&vault, query.trim(), cap)).await?;
+    Ok(json!({ "ok": true, "hits": hits }))
+}
+
+#[tauri::command]
+async fn notes_open_obsidian(app: AppHandle, file_path: String, prefer_obsidian: bool) -> Result<Value, String> {
+    let path = file_path.trim();
+    if path.is_empty() || !PathBuf::from(path).exists() {
+        return Ok(json!({ "ok": false, "error": "路径不存在或已被移动" }));
+    }
+    if prefer_obsidian {
+        let encoded = urlencoding::encode(path);
+        let url = format!("obsidian://open?path={encoded}");
+        if app.opener().open_url(&url, None::<&str>).is_ok() {
+            return Ok(json!({ "ok": true, "via": "obsidian" }));
+        }
+    }
+    app.opener()
+        .open_path(path, None::<&str>)
+        .map_err(|e| e.to_string())?;
+    Ok(json!({ "ok": true, "via": "default" }))
+}
+
 fn schedule_open_widget_window(app: &AppHandle, config: Value) {
     schedule_on_main_thread(app, 50, move |app| {
         let _ = open_widget_window(app, &config);
@@ -1527,6 +1673,9 @@ pub fn run() {
             fs_open_path,
             fs_show_in_folder,
             fs_path_exists,
+            fs_open_url,
+            notes_search_vault,
+            notes_open_obsidian,
             widget_open,
             widget_close,
             widget_focus_by_id,

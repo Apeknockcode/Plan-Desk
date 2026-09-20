@@ -282,6 +282,7 @@ function onMoveSelect(key: string) {
   font-size: 15px;
   line-height: 1.5;
   cursor: text;
+  color: var(--pd-body-fg);
 }
 
 .task-notes {
@@ -290,6 +291,7 @@ function onMoveSelect(key: string) {
   line-height: 1.5;
   margin-top: 6px;
   padding-left: 28px;
+  color: var(--pd-muted-fg);
 }
 
 .task-completed-at {

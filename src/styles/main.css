@@ -17,6 +17,17 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+#app {
+  color: var(--pd-body-fg);
+}
+
+/* Naive Layout 字色/底色与 PlanDesk 令牌对齐，避免「黑底 + 浅色主题字色」 */
+.n-layout,
+.n-layout-content,
+.n-layout-sider {
+  color: var(--pd-body-fg);
+}
+
 /* Tauri: 使用 data-tauri-drag-region 属性标记可拖拽区域 */
 .drag-region[data-tauri-drag-region] {
   user-select: none;

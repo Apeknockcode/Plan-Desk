@@ -7,6 +7,7 @@ import CalendarPanel from '@/components/CalendarPanel.vue'
 const ItemForm = defineAsyncComponent(() => import('@/components/ItemForm.vue'))
 const WidgetForm = defineAsyncComponent(() => import('@/components/WidgetForm.vue'))
 const SettingsModal = defineAsyncComponent(() => import('@/components/SettingsModal.vue'))
+const PlanNotesModal = defineAsyncComponent(() => import('@/components/PlanNotesModal.vue'))
 import PlanColorPicker from '@/components/PlanColorPicker.vue'
 import AppIcon from '@/ui/AppIcon.vue'
 import { Search } from '@/ui/icons'
@@ -18,7 +19,9 @@ import { resolveShortcuts } from '@/lib/shortcuts'
 import { pickPlanColor } from '@/lib/planColors'
 import { itemsDueOnDate, toDateKey } from '@/lib/calendarDate'
 import { CALENDAR_MENU_KEY, isCalendarMenuKey } from '@/lib/menuKeys'
-import type { PlanItem } from '@/lib/types'
+import { linkDisplayName } from '@/lib/itemLinks'
+import { normalizeNotionUrl, planHasExternalNotes } from '@/lib/planNotes'
+import type { PlanItem, Project } from '@/lib/types'
 
 const {
   store,
@@ -51,6 +54,12 @@ const showWidgetForm = ref(false)
 const showSettings = ref(false)
 const showPlanForm = ref(false)
 const showRenamePlanForm = ref(false)
+const showPlanNotes = ref(false)
+const planNotesPlanId = ref<string | null>(null)
+const vaultSearchHits = ref<{ path: string; title: string }[]>([])
+const vaultSearchLoading = ref(false)
+let vaultSearchTimer: ReturnType<typeof setTimeout> | undefined
+let vaultSearchGen = 0
 const newPlanName = ref('')
 const newPlanColor = ref('#E8A838')
 const renamePlanId = ref<string | null>(null)
@@ -160,20 +169,75 @@ const filteredItems = computed(() => {
   return sortPlanItems(items, statusFilter.value === 'completed')
 })
 
-const searchResults = computed(() => {
+const preferObsidianOpen = () => store.value.prefs.openMarkdownInObsidian !== false
+
+const itemSearchResults = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   if (!q) return []
 
   return store.value.items
-    .filter(
-      (item) =>
-        item.title.toLowerCase().includes(q) || item.notes.toLowerCase().includes(q)
-    )
+    .filter((item) => {
+      if (item.title.toLowerCase().includes(q) || item.notes.toLowerCase().includes(q)) {
+        return true
+      }
+      return (item.links ?? []).some(
+        (link) =>
+          link.path.toLowerCase().includes(q) ||
+          (link.label?.toLowerCase().includes(q) ?? false)
+      )
+    })
     .slice(0, 20)
     .map((item) => ({
       item,
       planName: store.value.projects.find((p) => p.id === item.projectId)?.name ?? '未分类'
     }))
+})
+
+const planNoteSearchResults = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return []
+  return store.value.projects
+    .filter((p) => planHasExternalNotes(p) && p.name.toLowerCase().includes(q))
+    .slice(0, 6)
+})
+
+const planNotesTarget = computed(
+  () => store.value.projects.find((p) => p.id === planNotesPlanId.value) ?? null
+)
+
+const searchHasQuery = computed(() => Boolean(searchQuery.value.trim()))
+
+const searchIsEmpty = computed(
+  () =>
+    searchHasQuery.value &&
+    !itemSearchResults.value.length &&
+    !vaultSearchHits.value.length &&
+    !planNoteSearchResults.value.length &&
+    !vaultSearchLoading.value
+)
+
+watch(searchQuery, (raw) => {
+  const q = raw.trim()
+  const vault = store.value.prefs.obsidianVaultPath?.trim()
+  if (vaultSearchTimer) clearTimeout(vaultSearchTimer)
+  if (!vault || q.length < 2) {
+    vaultSearchHits.value = []
+    vaultSearchLoading.value = false
+    return
+  }
+  vaultSearchLoading.value = true
+  const gen = ++vaultSearchGen
+  vaultSearchTimer = setTimeout(() => {
+    void (async () => {
+      try {
+        const result = await window.planDesk.searchObsidianVault?.(vault, q, 12)
+        if (gen !== vaultSearchGen) return
+        vaultSearchHits.value = result?.ok ? (result.hits ?? []) : []
+      } finally {
+        if (gen === vaultSearchGen) vaultSearchLoading.value = false
+      }
+    })()
+  }, 280)
 })
 
 function applyPrefs() {
@@ -535,14 +599,55 @@ function handleClearCompleted(planId: string) {
 
 function onPlanContextSelect(key: string, planId: string) {
   if (key === 'rename') openRenamePlan(planId)
+  else if (key === 'plan-notes') openPlanNotes(planId)
   else if (key === 'clear-completed') handleClearCompleted(planId)
   else if (key === 'delete') confirmDeletePlanById(planId)
+}
+
+function openPlanNotes(planId?: string | null) {
+  const id = planId ?? selectedPlanId.value
+  if (!id) return
+  planNotesPlanId.value = id
+  if (selectedPlanId.value !== id) {
+    selectedMenuKey.value = `${id}:active`
+  }
+  showPlanNotes.value = true
+}
+
+async function savePlanNotes(patch: { notionUrl: string | null; obsidianPath: string | null }) {
+  if (!planNotesPlanId.value) return
+  await updateProject(planNotesPlanId.value, patch)
+  message.success('已保存计划笔记关联')
 }
 
 function openSearch() {
   searchQuery.value = ''
   showSearch.value = true
   nextTick(() => searchInputRef.value?.focus())
+}
+
+async function openVaultSearchHit(hit: { path: string; title: string }) {
+  const ok = await window.planDesk.openObsidianNote?.(hit.path, preferObsidianOpen())
+  if (!ok?.ok) message.warning('无法在 Obsidian 中打开该笔记')
+  showSearch.value = false
+  searchQuery.value = ''
+}
+
+async function openPlanNoteSearchResult(plan: Project) {
+  const notion = normalizeNotionUrl(plan.notionUrl)
+  if (notion) {
+    const ok = await window.planDesk.openUrl?.(notion)
+    if (!ok?.ok) message.warning('无法打开 Notion 链接')
+  } else if (plan.obsidianPath?.trim()) {
+    const ok = await window.planDesk.openObsidianNote?.(
+      plan.obsidianPath.trim(),
+      preferObsidianOpen()
+    )
+    if (!ok?.ok) message.warning('无法打开 Obsidian 路径')
+  }
+  selectedMenuKey.value = `${plan.id}:active`
+  showSearch.value = false
+  searchQuery.value = ''
 }
 
 function openSearchResult(item: PlanItem) {
@@ -566,7 +671,8 @@ function isModalOpen(): boolean {
     showWidgetForm.value ||
     showSettings.value ||
     showPlanForm.value ||
-    showRenamePlanForm.value
+    showRenamePlanForm.value ||
+    showPlanNotes.value
   )
 }
 
@@ -577,6 +683,13 @@ function closeAllModals() {
   showSettings.value = false
   showPlanForm.value = false
   showRenamePlanForm.value = false
+  showPlanNotes.value = false
+}
+
+function onSearchModalAfterLeave() {
+  searchQuery.value = ''
+  vaultSearchHits.value = []
+  vaultSearchLoading.value = false
 }
 
 function focusQuickAdd() {
@@ -787,6 +900,7 @@ onUnmounted(() => {
       :undo-state="undoState"
       :projects="store.projects"
       @open-search="openSearch"
+      @open-plan-notes="openPlanNotes()"
       @clear-completed="selectedPlanId && handleClearCompleted(selectedPlanId)"
       @delete-plan="handleDeletePlan"
       @quick-add="handleQuickAdd"
@@ -914,19 +1028,26 @@ onUnmounted(() => {
     </template>
   </NModal>
 
+  <PlanNotesModal
+    v-if="loaded"
+    v-model:show="showPlanNotes"
+    :plan="planNotesTarget"
+    @save="savePlanNotes"
+  />
+
   <NModal
     v-if="loaded"
     v-model:show="showSearch"
     display-directive="if"
     preset="card"
-    title="搜索事项"
-    style="width: 480px"
-    @after-leave="searchQuery = ''"
+    title="搜索"
+    style="width: 520px"
+    @after-leave="onSearchModalAfterLeave"
   >
     <NInput
       ref="searchInputRef"
       v-model:value="searchQuery"
-      placeholder="输入关键词搜索标题或备注…"
+      placeholder="事项、备注、Obsidian 库内笔记（需先在设置中绑定库）…"
       clearable
       autofocus
     >
@@ -936,27 +1057,72 @@ onUnmounted(() => {
     </NInput>
 
     <div class="search-results">
+      <NText v-if="!searchHasQuery" depth="3" class="search-hint">
+        快捷键 ⌘K / Ctrl+K；Obsidian 需至少 2 个字符
+      </NText>
       <NEmpty
-        v-if="searchQuery.trim() && !searchResults.length"
-        description="没有匹配的事项"
+        v-else-if="searchIsEmpty"
+        description="没有匹配结果"
         size="small"
         style="padding: 24px 0"
       />
-      <NText v-else-if="!searchQuery.trim()" depth="3" class="search-hint">
-        快捷键 ⌘K / Ctrl+K 随时打开搜索
-      </NText>
-      <button
-        v-for="{ item, planName } in searchResults"
-        :key="item.id"
-        type="button"
-        class="search-result-item"
-        @click="openSearchResult(item)"
-      >
-        <span class="search-result-title">{{ item.title }}</span>
-        <span class="search-result-meta">
-          {{ planName }} · {{ item.completed ? '已完成' : '进行中' }}
-        </span>
-      </button>
+
+      <template v-else>
+        <section v-if="itemSearchResults.length" class="search-section">
+          <NText depth="3" class="search-section__label">事项</NText>
+          <button
+            v-for="{ item, planName } in itemSearchResults"
+            :key="item.id"
+            type="button"
+            class="search-result-item"
+            @click="openSearchResult(item)"
+          >
+            <span class="search-result-title">{{ item.title }}</span>
+            <span class="search-result-meta">
+              {{ planName }} · {{ item.completed ? '已完成' : '进行中' }}
+            </span>
+          </button>
+        </section>
+
+        <section v-if="vaultSearchLoading || vaultSearchHits.length" class="search-section">
+          <NText depth="3" class="search-section__label">
+            Obsidian
+            <span v-if="vaultSearchLoading"> · 检索中…</span>
+          </NText>
+          <button
+            v-for="hit in vaultSearchHits"
+            :key="hit.path"
+            type="button"
+            class="search-result-item"
+            @click="openVaultSearchHit(hit)"
+          >
+            <span class="search-result-title">{{ hit.title }}</span>
+            <span class="search-result-meta search-result-meta--mono">{{ hit.path }}</span>
+          </button>
+        </section>
+
+        <section v-if="planNoteSearchResults.length" class="search-section">
+          <NText depth="3" class="search-section__label">计划笔记</NText>
+          <button
+            v-for="plan in planNoteSearchResults"
+            :key="plan.id"
+            type="button"
+            class="search-result-item"
+            @click="openPlanNoteSearchResult(plan)"
+          >
+            <span class="search-result-title">{{ plan.name }}</span>
+            <span class="search-result-meta">
+              {{
+                normalizeNotionUrl(plan.notionUrl)
+                  ? 'Notion'
+                  : plan.obsidianPath
+                    ? linkDisplayName({ path: plan.obsidianPath, kind: 'file' })
+                    : '笔记'
+              }}
+            </span>
+          </button>
+        </section>
+      </template>
     </div>
   </NModal>
 </template>
@@ -973,8 +1139,26 @@ onUnmounted(() => {
 
 .search-results {
   margin-top: 12px;
-  max-height: 320px;
+  max-height: 360px;
   overflow: auto;
+}
+
+.search-section {
+  margin-bottom: 12px;
+}
+
+.search-section__label {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+  padding: 0 4px;
+}
+
+.search-result-meta--mono {
+  font-size: 11px;
+  word-break: break-all;
 }
 
 .search-hint {

@@ -44,6 +44,10 @@ export function buildThemeOverrides(
         primaryColorHover: '#FFFFFFFF',
         primaryColorPressed: '#D1D1D6FF',
         primaryColorSuppl: '#F5F5F7FF',
+        textColorBase: '#F5F5F7FF',
+        textColor1: '#F5F5F7FF',
+        textColor2: 'rgba(235, 235, 240, 0.82)',
+        textColor3: 'rgba(235, 235, 240, 0.55)',
         borderRadius: '8px',
         fontFamily
       },
@@ -71,6 +75,41 @@ export function buildThemeOverrides(
       Card: {
         color: '#1C1C1EFF',
         borderColor: 'rgba(255, 255, 255, 0.08)'
+      },
+      Input: {
+        color: '#2C2C2EFF',
+        colorFocus: '#3A3A3CFF',
+        textColor: '#F5F5F7FF',
+        placeholderColor: 'rgba(235, 235, 240, 0.45)',
+        border: '1px solid rgba(255, 255, 255, 0.12)',
+        borderHover: '1px solid rgba(255, 255, 255, 0.2)',
+        borderFocus: '1px solid rgba(245, 245, 247, 0.35)',
+        boxShadowFocus: '0 0 0 2px rgba(245, 245, 247, 0.12)'
+      },
+      InternalSelection: {
+        color: '#2C2C2EFF',
+        textColor: '#F5F5F7FF',
+        placeholderColor: 'rgba(235, 235, 240, 0.45)',
+        border: '1px solid rgba(255, 255, 255, 0.12)',
+        borderHover: '1px solid rgba(255, 255, 255, 0.2)',
+        borderFocus: '1px solid rgba(245, 245, 247, 0.35)',
+        boxShadowFocus: '0 0 0 2px rgba(245, 245, 247, 0.12)'
+      },
+      InternalSelectMenu: {
+        color: '#2C2C2EFF',
+        optionTextColor: '#EBEBF0FF',
+        optionTextColorActive: '#F5F5F7FF',
+        optionColorPending: 'rgba(255, 255, 255, 0.06)',
+        optionColorActive: 'rgba(255, 255, 255, 0.1)'
+      },
+      Modal: {
+        color: '#1C1C1EFF',
+        textColor: '#F5F5F7FF'
+      },
+      Switch: {
+        railColor: 'rgba(255, 255, 255, 0.14)',
+        railColorActive: '#F5F5F7FF',
+        buttonColor: '#FFFFFFFF'
       }
     }
   }
@@ -81,6 +120,10 @@ export function buildThemeOverrides(
       primaryColorHover: '#000000FF',
       primaryColorPressed: '#3A3A3CFF',
       primaryColorSuppl: '#1C1C1EFF',
+      textColorBase: '#1C1C1EFF',
+      textColor1: '#1C1C1EFF',
+      textColor2: 'rgba(60, 60, 67, 0.85)',
+      textColor3: 'rgba(60, 60, 67, 0.55)',
       borderRadius: '8px',
       fontFamily
     },
@@ -108,6 +151,41 @@ export function buildThemeOverrides(
     Card: {
       color: '#FFFFFFFF',
       borderColor: 'rgba(0, 0, 0, 0.06)'
+    },
+    Input: {
+      color: '#FFFFFFFF',
+      colorFocus: '#FFFFFFFF',
+      textColor: '#1C1C1EFF',
+      placeholderColor: 'rgba(60, 60, 67, 0.45)',
+      border: '1px solid rgba(0, 0, 0, 0.12)',
+      borderHover: '1px solid rgba(0, 0, 0, 0.2)',
+      borderFocus: '1px solid rgba(28, 28, 30, 0.35)',
+      boxShadowFocus: '0 0 0 2px rgba(28, 28, 30, 0.08)'
+    },
+    InternalSelection: {
+      color: '#FFFFFFFF',
+      textColor: '#1C1C1EFF',
+      placeholderColor: 'rgba(60, 60, 67, 0.45)',
+      border: '1px solid rgba(0, 0, 0, 0.12)',
+      borderHover: '1px solid rgba(0, 0, 0, 0.2)',
+      borderFocus: '1px solid rgba(28, 28, 30, 0.35)',
+      boxShadowFocus: '0 0 0 2px rgba(28, 28, 30, 0.08)'
+    },
+    InternalSelectMenu: {
+      color: '#FFFFFFFF',
+      optionTextColor: '#3A3A3CFF',
+      optionTextColorActive: '#1C1C1EFF',
+      optionColorPending: 'rgba(0, 0, 0, 0.04)',
+      optionColorActive: 'rgba(0, 0, 0, 0.06)'
+    },
+    Modal: {
+      color: '#FFFFFFFF',
+      textColor: '#1C1C1EFF'
+    },
+    Switch: {
+      railColor: 'rgba(0, 0, 0, 0.12)',
+      railColorActive: '#1C1C1EFF',
+      buttonColor: '#FFFFFFFF'
     }
   }
 }

@@ -144,7 +144,7 @@ async function save() {
         <NInput v-model:value="notes" type="textarea" placeholder="可选" :rows="2" />
       </NFormItem>
 
-      <NFormItem label="关联文件">
+      <NFormItem label="关联文件 / 链接">
         <ItemLinksEditor v-model="links" />
       </NFormItem>
 

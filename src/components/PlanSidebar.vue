@@ -52,6 +52,7 @@ function getPlanMenuOptions(planId: string) {
 
   return [
     { label: '编辑计划', key: 'rename' },
+    { label: '笔记关联…', key: 'plan-notes' },
     { label: '清空已完成', key: 'clear-completed', disabled: doneCount === 0 },
     { type: 'divider', key: 'd1' },
     { label: '删除计划', key: 'delete' }

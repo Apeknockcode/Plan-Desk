@@ -6,14 +6,20 @@ export interface Project {
   name: string
   color: string
   createdAt: number
+  /** 计划主页（Notion 等） */
+  notionUrl?: string | null
+  /** Obsidian 库内笔记或文件夹的绝对路径 */
+  obsidianPath?: string | null
 }
 
-export type ItemLinkKind = 'file' | 'folder'
+export type ItemLinkKind = 'file' | 'folder' | 'url'
 
-/** 事项关联的文件或文件夹（可选） */
+/** 事项关联的文件、文件夹或网页（Notion 等） */
 export interface ItemLink {
   path: string
   kind: ItemLinkKind
+  /** 网页链接展示名（可选） */
+  label?: string
 }
 
 export interface PlanItem {
@@ -109,6 +115,10 @@ export interface AppPrefs {
   menuBarEnabled?: boolean
   /** macOS：隐藏 Dock 图标，仅保留菜单栏入口 */
   hideDockIcon?: boolean
+  /** Obsidian 库根目录（绝对路径） */
+  obsidianVaultPath?: string | null
+  /** 打开 .md 时优先用 Obsidian URI（需已安装 Obsidian） */
+  openMarkdownInObsidian?: boolean
 }
 
 export interface AppStore {

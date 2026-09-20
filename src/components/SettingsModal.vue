@@ -22,7 +22,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ 'update:show': [value: boolean]; imported: [] }>()
 
-type SettingsTab = 'general' | 'appearance' | 'shortcuts' | 'data'
+type SettingsTab = 'general' | 'notes' | 'appearance' | 'shortcuts' | 'data'
 
 const message = useMessage()
 const { load, savePrefs, store } = usePlanStore()
@@ -37,8 +37,12 @@ const dataDir = ref('')
 const busy = ref(false)
 const isMac = window.planDesk.platform === 'darwin'
 
+const obsidianVaultPath = ref('')
+const openMarkdownInObsidian = ref(true)
+
 const navItems: { key: SettingsTab; label: string; desc: string }[] = [
   { key: 'general', label: '通用', desc: '计划与启动' },
+  { key: 'notes', label: '笔记', desc: 'Obsidian / Notion' },
   { key: 'appearance', label: '外观', desc: '深浅模式' },
   { key: 'shortcuts', label: '快捷键', desc: '键盘操作' },
   { key: 'data', label: '数据', desc: '备份恢复' }
@@ -84,6 +88,8 @@ async function refresh() {
   dataDir.value = await window.planDesk.getDataDirectory()
   theme.value = prefs.theme ?? 'system'
   defaultPlanId.value = prefs.defaultPlanId
+  obsidianVaultPath.value = prefs.obsidianVaultPath ?? ''
+  openMarkdownInObsidian.value = prefs.openMarkdownInObsidian !== false
   if (isMac) {
     menuBarEnabled.value = await window.planDesk.getMenuBarEnabled()
     hideDockIcon.value = await window.planDesk.getHideDockIcon()
@@ -173,6 +179,28 @@ async function onThemeChange(value: ThemePreference) {
 async function onDefaultPlanChange(value: string | null) {
   defaultPlanId.value = value
   await savePrefs({ defaultPlanId: value })
+}
+
+async function pickObsidianVault() {
+  const result = await window.planDesk.pickLink?.('folder')
+  if (!result?.ok || !result.path) return
+  obsidianVaultPath.value = result.path
+  await savePrefs({
+    obsidianVaultPath: result.path,
+    openMarkdownInObsidian: openMarkdownInObsidian.value
+  })
+  message.success('已设置 Obsidian 库路径')
+}
+
+async function clearObsidianVault() {
+  obsidianVaultPath.value = ''
+  await savePrefs({ obsidianVaultPath: null })
+  message.success('已清除库路径')
+}
+
+async function onOpenMarkdownInObsidianChange(value: boolean) {
+  openMarkdownInObsidian.value = value
+  await savePrefs({ openMarkdownInObsidian: value })
 }
 
 function startRecordShortcut(id: ShortcutActionId) {
@@ -308,6 +336,48 @@ async function resetAllShortcuts() {
             </section>
           </div>
 
+          <!-- 笔记 -->
+          <div v-else-if="activeTab === 'notes'" class="settings-pane">
+            <section class="settings-section">
+              <h3 class="settings-section__title">Obsidian 库</h3>
+              <p class="settings-section__desc">
+                选择 Obsidian 库根目录后，全局搜索（⌘K）会同时检索库内 Markdown 标题与正文；点击
+                .md 关联时可用 Obsidian 打开。
+              </p>
+              <div class="vault-path-row">
+                <NText v-if="obsidianVaultPath" depth="2" class="vault-path-text">
+                  {{ obsidianVaultPath }}
+                </NText>
+                <NText v-else depth="3" class="vault-path-text">未设置</NText>
+                <NSpace :size="8">
+                  <NButton size="small" secondary @click="pickObsidianVault">
+                    <template #icon><AppIcon :icon="FolderOpen" :size="14" /></template>
+                    选择库文件夹
+                  </NButton>
+                  <NButton v-if="obsidianVaultPath" size="small" quaternary @click="clearObsidianVault">
+                    清除
+                  </NButton>
+                </NSpace>
+              </div>
+              <div class="settings-stack" style="margin-top: 14px">
+                <SettingToggleRow
+                  label="Markdown 用 Obsidian 打开"
+                  hint="关闭则使用系统默认应用"
+                  :value="openMarkdownInObsidian"
+                  @update:value="onOpenMarkdownInObsidianChange"
+                />
+              </div>
+            </section>
+
+            <section class="settings-section">
+              <h3 class="settings-section__title">Notion</h3>
+              <p class="settings-section__desc">
+                PlanDesk 不同步 Notion 数据库；可在「计划 → 笔记关联」绑定项目页，或在编辑事项时添加
+                Notion / 网页链接。
+              </p>
+            </section>
+          </div>
+
           <!-- 外观 -->
           <div v-else-if="activeTab === 'appearance'" class="settings-pane">
             <section class="settings-section">
@@ -439,12 +509,8 @@ async function resetAllShortcuts() {
 
 .settings-modal-root :deep(.n-modal-body) {
   padding: 0;
-  background: #1c1a18;
+  background: var(--pd-sider-bg);
   box-shadow: none;
-}
-
-html[data-theme='light'] .settings-modal-root :deep(.n-modal-body) {
-  background: #ffffff;
 }
 
 .settings-shell {
@@ -455,15 +521,15 @@ html[data-theme='light'] .settings-modal-root :deep(.n-modal-body) {
   flex-direction: column;
   border-radius: 14px;
   overflow: hidden;
-  background: #1c1a18;
-  border: 1px solid var(--pd-panel-border, rgba(255, 255, 255, 0.08));
+  color: var(--pd-body-fg);
+  background: var(--pd-sider-bg);
+  border: 1px solid var(--pd-panel-border);
   box-shadow:
     0 24px 64px rgba(0, 0, 0, 0.35),
     0 0 0 1px var(--pd-accent-soft);
 }
 
 html[data-theme='light'] .settings-shell {
-  background: #ffffff;
   box-shadow:
     0 24px 64px rgba(0, 0, 0, 0.12),
     0 0 0 1px rgba(0, 0, 0, 0.06);
@@ -507,7 +573,7 @@ html[data-theme='light'] .settings-shell {
 .settings-header__subtitle {
   margin: 2px 0 0;
   font-size: 12px;
-  opacity: 0.55;
+  color: var(--pd-muted-fg);
 }
 
 .settings-close {
@@ -540,7 +606,8 @@ html[data-theme='light'] .settings-shell {
   width: 148px;
   flex-shrink: 0;
   padding: 12px 10px;
-  border-right: 1px solid var(--pd-panel-border, rgba(255, 255, 255, 0.08));
+  border-right: 1px solid var(--pd-panel-border);
+  background: var(--pd-panel-bg);
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -578,11 +645,12 @@ html[data-theme='light'] .settings-shell {
 .settings-nav__label {
   font-size: 13px;
   font-weight: 500;
+  color: var(--pd-body-fg);
 }
 
 .settings-nav__desc {
   font-size: 10px;
-  opacity: 0.45;
+  color: var(--pd-muted-fg);
   line-height: 1.3;
 }
 
@@ -622,7 +690,7 @@ html[data-theme='light'] .settings-shell {
   margin: 0 0 12px;
   font-size: 12px;
   line-height: 1.55;
-  opacity: 0.58;
+  color: var(--pd-muted-fg);
 }
 
 .settings-section__desc--top {
@@ -751,6 +819,18 @@ html[data-theme='light'] .settings-shell {
 .data-tile:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.vault-path-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vault-path-text {
+  font-size: 12px;
+  word-break: break-all;
+  line-height: 1.45;
 }
 
 .data-tile--wide {
