@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.4.8] - 2026-09-20
+
+### Added
+
+- **Obsidian / Notion 笔记联动（预览）**：设置中绑定 Obsidian 库；计划「笔记关联」；事项 Notion/网页链接；⌘K 检索库内 Markdown
+- **pnpm**：`pnpm-lock.yaml` 与工作区配置（批准 esbuild 安装脚本）
+
+### Fixed
+
+- 深色模式下主列表与设置弹窗对比度、Naive 输入框/下拉框与 PlanDesk 色板对齐
+
 ## [1.4.7] - 2026-09-18
 
 ### Added
